@@ -1,5 +1,5 @@
 import { supabase } from '@/services/supabase';
-import { ensureLiveNames } from '@/services/bitrixNamesService';
+import { ensureLiveNames } from '@/services/namesService';
 import { getStageLabel, getPipelineLabel, getAssociateLabel, getClientLabel, getClientStatus } from '@/utils/dealMeta';
 
 const LIST_COLUMNS =

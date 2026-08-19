@@ -1,8 +1,8 @@
 // Bitrix24 CRM contact custom fields describing a client's relationship
 // lifecycle (Setting Up -> Deal Flow -> ... -> Deal Closed/Lost), distinct
 // from a deal's stage_id. Consumed by scripts/refresh-client-data.mjs (which
-// resolves CLIENT_STATUS_FIELD codes into src/utils/clientStatus.js via
-// CLIENT_STATUS_LOOKUP) and by getClientStatus() in dealMeta.js. Originally
+// resolves CLIENT_STATUS_FIELD codes into the `clients` table's status column
+// via CLIENT_STATUS_LOOKUP) and by getClientStatus() in dealMeta.js. Originally
 // staged here from the reference app (Bitrix Dashboard App/src/utils/bitrix.js).
 export const TEAM_FIELD = 'UF_USR_1779466932710';
 export const TEAM_LEAD_FIELD = 'UF_CRM_1782826965894';

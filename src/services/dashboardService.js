@@ -1,6 +1,6 @@
 import { STAGE_ORDER, getStageLabel, getClientLabel, getClientStatus } from '@/utils/dealMeta';
 import { CLIENT_STATUS_ORDER } from '@/utils/clientFields';
-import { CLIENT_NAMES } from '@/utils/clientNames';
+import { liveClientIds } from '@/utils/nameRegistry';
 import { ordinalFill } from '@/utils/ordinalColor';
 
 // This is a horizontal bar list colored by a single-hue ordinal ramp, not a
@@ -193,7 +193,7 @@ export function getClientPerformance(deals, limit = 10) {
     else bucket.active += 1;
   }
 
-  for (const contactId of Object.keys(CLIENT_NAMES)) {
+  for (const contactId of liveClientIds()) {
     const id = Number(contactId);
     if (!byClient.has(id)) {
       byClient.set(id, {

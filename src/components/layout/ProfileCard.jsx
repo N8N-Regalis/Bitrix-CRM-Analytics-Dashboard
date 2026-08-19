@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { LogOut, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/components/layout/AuthProvider';
-import { getAssociateLabelByEmail } from '@/utils/associateEmails';
+import { useAssociateLabelByEmail } from '@/hooks/useNames';
 import { formatInitials } from '@/utils/format';
 
 // Backs the sidebar footer, so the signed-in identity is described in
@@ -11,6 +11,7 @@ import { formatInitials } from '@/utils/format';
 function useProfile() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const associateLabel = useAssociateLabelByEmail(user?.email);
 
   function handleSignOut() {
     signOut();
@@ -18,7 +19,7 @@ function useProfile() {
     navigate('/login', { replace: true });
   }
 
-  return { user, associateLabel: getAssociateLabelByEmail(user?.email), handleSignOut };
+  return { user, associateLabel, handleSignOut };
 }
 
 function ProfileAvatar({ user, className }) {

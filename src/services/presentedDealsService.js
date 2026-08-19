@@ -1,5 +1,5 @@
 import { supabase } from '@/services/supabase';
-import { ensureLiveNames } from '@/services/bitrixNamesService';
+import { ensureLiveNames } from '@/services/namesService';
 import {
   fetchTransitionsFromStage,
   fetchTransitionsForDeals,
@@ -244,8 +244,8 @@ function resolveOutcome(deal, outcomes, reworkFallbacks) {
  * Presented Deals page groups by, plus how the presentation was received.
  */
 export async function fetchPresentedDeals() {
-  // Associate/client labels below come from the live name overlay; see
-  // bitrixNamesService for why this has to resolve before rows are mapped.
+  // Associate/client labels below come from the name registry; see
+  // namesService for why this has to resolve before rows are mapped.
   const [datedDeals, outcomes] = await Promise.all([
     fetchDealsWithPresentedDate(),
     fetchPresentationOutcomes(),

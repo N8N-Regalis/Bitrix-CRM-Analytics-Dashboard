@@ -16,7 +16,7 @@ import { SyncStatus } from '@/components/layout/SyncStatus';
 import { NAV_ITEMS } from '@/components/layout/Navigation';
 import { useAuth } from '@/components/layout/AuthProvider';
 import { useDealsQuery } from '@/hooks/useDeals';
-import { getAssociateLabelByEmail } from '@/utils/associateEmails';
+import { useAssociateLabelByEmail } from '@/hooks/useNames';
 import { formatInitials } from '@/utils/format';
 import { cn } from '@/utils/cn';
 
@@ -63,6 +63,7 @@ export function Header({ desktopSidebarOpen, onExpandSidebar, showExpandHint, on
   const currentPage = useBreadcrumb();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const associateLabel = useAssociateLabelByEmail(user?.email);
   const { data: deals = [] } = useDealsQuery();
   const [searchValue, setSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -220,7 +221,7 @@ export function Header({ desktopSidebarOpen, onExpandSidebar, showExpandHint, on
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel className="font-normal">
-              <p className="truncate font-semibold text-foreground">{getAssociateLabelByEmail(user?.email)}</p>
+              <p className="truncate font-semibold text-foreground">{associateLabel}</p>
               <p className="truncate text-xs font-normal text-muted-foreground">{user?.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

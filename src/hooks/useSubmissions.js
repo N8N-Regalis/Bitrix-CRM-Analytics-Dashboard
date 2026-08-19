@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAllSubmissions, SUBMISSIONS_QUERY_KEY } from '@/services/submissionsService';
-import { fetchBitrixUsers } from '@/services/bitrixUsersService';
+import { fetchAssociateEmailMap } from '@/services/namesService';
 import { fetchPresentedDeals } from '@/services/presentedDealsService';
 import { nameKey } from '@/utils/nameMatch';
 import { resolveClientName } from '@/utils/dealMeta';
@@ -17,8 +17,8 @@ export function useSubmissionsQuery() {
 
 export function useBitrixUsersQuery() {
   return useQuery({
-    queryKey: ['bitrix-users'],
-    queryFn: fetchBitrixUsers,
+    queryKey: ['associate-emails'],
+    queryFn: fetchAssociateEmailMap,
     staleTime: 60 * 60 * 1000, // 1 hour
   });
 }

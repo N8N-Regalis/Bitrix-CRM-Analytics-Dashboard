@@ -1,10 +1,8 @@
-import { ASSOCIATE_NAMES } from '@/utils/associateNames';
-import { CLIENT_NAMES } from '@/utils/clientNames';
-import { CLIENT_STATUS } from '@/utils/clientStatus';
 import { cleanName, nameKey } from '@/utils/nameMatch';
 import {
   getNameRevision,
   lookupAssociateName,
+  lookupAssociateNameByEmail,
   lookupClientName,
   lookupClientStatus,
   liveClientNames,
@@ -152,25 +150,28 @@ export function getPipelineLabel(categoryId) {
   return PIPELINE_LABELS[categoryId] ?? `Pipeline ${categoryId}`;
 }
 
-// Bitrix user IDs have no name lookup in Supabase, so this resolves against the
-// live overlay refreshed on each app load (nameRegistry.js), falling back to
-// the build-time snapshot (associateNames.js) when Bitrix is unreachable.
-// Centralized here so a real associates table can replace this with one edit.
+// deals.assigned_by_id is a bare Bitrix user id; the name lives in the
+// `associates` table, loaded into nameRegistry once per app load. An id with no
+// row is shown as-is rather than blanked, so an unsynced hire is still legible.
 export function getAssociateLabel(assignedById) {
   if (assignedById === null || assignedById === undefined) return 'Unassigned';
-  return (
-    lookupAssociateName(assignedById) ||
-    ASSOCIATE_NAMES[assignedById] ||
-    `Associate #${assignedById}`
-  );
+  return lookupAssociateName(assignedById) || `Associate #${assignedById}`;
 }
 
-// A deal's contact_id is the buyer-side client it was sourced for (see
-// clientNames.js), resolved against the same kind of hand-maintained snapshot.
+// A deal's contact_id is the buyer-side client it was sourced FOR (not the
+// target company being evaluated -- that's the deal's title/company_id),
+// resolved against the `clients` table.
 export function getClientLabel(contactId) {
   if (contactId === null || contactId === undefined) return 'No Client';
-  const name = lookupClientName(contactId) || CLIENT_NAMES[contactId];
+  const name = lookupClientName(contactId);
   return name ? cleanName(name) : `Client #${contactId}`;
+}
+
+// Submissions rows identify their sourcer only by email address, so this is the
+// same roster reached through a different key.
+export function getAssociateLabelByEmail(email) {
+  if (!email) return 'Unknown';
+  return lookupAssociateNameByEmail(email) || email;
 }
 
 // Lookup tables for resolveClientName, rebuilt whenever the live overlay
@@ -188,9 +189,8 @@ function buildClientNameIndex() {
   const byFirstLast = new Map();
   const distinctPerFirstLast = new Map();
 
-  // Live overlay first, then the snapshot -- Set-deduped by canonical name, so
-  // a client present in both is indexed once.
-  const allNames = new Set([...liveClientNames(), ...Object.values(CLIENT_NAMES)]);
+  // Set-deduped by canonical name, since two contacts can carry the same one.
+  const allNames = new Set(liveClientNames());
 
   for (const name of allNames) {
     const canonical = cleanName(name);
@@ -243,10 +243,10 @@ export function resolveClientName(partnerName) {
   return (shortKey && clientNameIndex.byFirstLast.get(shortKey)) || cleaned;
 }
 
-// A client's relationship-lifecycle status (see clientStatus.js), resolved
-// against the same kind of hand-maintained snapshot as the name/associate
-// lookups above.
+// A client's relationship-lifecycle status, carried on the same `clients` row
+// as the name. Contacts whose Bitrix status maps to nothing recognized are
+// stored as null, hence the fallback here rather than in the sync.
 export function getClientStatus(contactId) {
   if (contactId === null || contactId === undefined) return 'Unassigned';
-  return lookupClientStatus(contactId) || CLIENT_STATUS[contactId] || 'Unassigned';
+  return lookupClientStatus(contactId) || 'Unassigned';
 }
