@@ -19,9 +19,13 @@ name: Refresh Bitrix name tables
 
 on:
   schedule:
-    # Mondays 05:00 Manila (21:00 UTC Sunday), so a fresh roster is in place
-    # before the working week rather than mid-morning.
-    - cron: '0 21 * * 0'
+    # Weekdays 08:00 Eastern. Cron here is UTC only and has no DST awareness,
+    # so this is pinned to 13:00 UTC = 08:00 EST; through EDT (mid-March to
+    # early November) it lands at 09:00 Eastern instead. The hour of drift is
+    # harmless for a roster refresh -- if it ever isn't, switch to 12:00 UTC
+    # to favour EDT, or add both hours plus a guard step that exits unless
+    # the Eastern hour is 8.
+    - cron: '0 13 * * 1-5'
   workflow_dispatch:
 
 permissions:
