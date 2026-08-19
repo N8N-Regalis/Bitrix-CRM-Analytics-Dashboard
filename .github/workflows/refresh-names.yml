@@ -1,0 +1,67 @@
+# Keeps the `associates` and `clients` tables in Supabase current with Bitrix24.
+#
+# Replaces the manual `npm run refresh:*` cycle. Output goes to the database,
+# not back into the repo, so this needs no write permission and produces no
+# commits -- which is also why it can run on a schedule without churning git
+# history on the date stamp the snapshot files carry.
+#
+# Requires three repository secrets (Settings -> Secrets and variables -> Actions):
+#   BITRIX_WEBHOOK_BASE         the inbound webhook base URL
+#   SUPABASE_URL                https://<project-ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY   bypasses RLS; never VITE_-prefixed anywhere
+#
+# NOTE: while the refresh scripts still dual-write, the .js snapshots they
+# regenerate here are discarded with the runner. That is deliberate -- the
+# deployed app reads the snapshots until phase 4 lands, so until then keep
+# running the scripts locally when you need the committed files updated too.
+
+name: Refresh Bitrix name tables
+
+on:
+  schedule:
+    # Mondays 05:00 Manila (21:00 UTC Sunday), so a fresh roster is in place
+    # before the working week rather than mid-morning.
+    - cron: '0 21 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A scheduled run and a manual one overlapping would race on the same upserts.
+concurrency:
+  group: refresh-names
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Needed now that the scripts import @supabase/supabase-js rather than
+      # only Node built-ins.
+      - run: npm ci
+
+      - name: Refresh clients
+        env:
+          BITRIX_WEBHOOK_BASE: ${{ secrets.BITRIX_WEBHOOK_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run refresh:clients
+
+      # Runs even if the clients step failed, so one broken feed doesn't hide
+      # the state of the other.
+      - name: Refresh associates
+        if: always()
+        env:
+          BITRIX_WEBHOOK_BASE: ${{ secrets.BITRIX_WEBHOOK_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run refresh:associates

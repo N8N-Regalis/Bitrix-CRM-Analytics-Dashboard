@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Env files -- deny every variant, allow only the committed template, so
+# backups like .env.reference-apps.backup can never slip through.
+.env*
+!.env.example
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local archives and data exports (may bundle credentials or client data)
+*.zip
+unaccounted-presented-deals.csv
+
+# Claude Code -- settings.json is shared, settings.local.json is machine-specific
+.claude/settings.local.json
