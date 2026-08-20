@@ -36,6 +36,7 @@ export default function Dashboard() {
     <PageContainer
       title="Dashboard"
       subtitle="Executive overview of deal activity"
+      isLoading={isLoading}
       actions={
         <button
           onClick={() => refetch()}
@@ -71,19 +72,19 @@ export default function Dashboard() {
               isLoading={isLoading}
             />
             <StatCard
-              label="Won Deals"
+              label="Closed Deals"
               value={formatNumber(kpis.won)}
               icon={CheckCircle2}
               color="good"
-              description="Deals closed successfully"
+              description="Deals that reached Deal Closed"
               isLoading={isLoading}
             />
             <StatCard
-              label="Lost Deals"
+              label="Axed Deals"
               value={formatNumber(kpis.lost)}
               icon={XCircle}
               color="critical"
-              description="Deals closed unsuccessfully"
+              description="Deals that were axed"
               isLoading={isLoading}
             />
           </div>

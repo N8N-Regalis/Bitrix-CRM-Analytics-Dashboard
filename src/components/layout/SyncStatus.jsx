@@ -93,15 +93,36 @@ function RefreshSourcedButton({ isFetching, onRefresh }) {
 }
 
 /**
- * Header readout of how current the dashboard's two datasets are. They come
- * from different databases and are dated differently -- presented deals by
- * when the Bitrix sync job last ran, sourced deals by when this browser pulled
+ * One roster row. The two are identical apart from which table they read, and
+ * both are dated by the newest `synced_at` in that table (see
+ * fetchRosterSyncedAt), so the wording lives here once.
+ */
+function RosterRow({ label, state }) {
+  return (
+    <FreshnessRow
+      label={label}
+      note={state.isError ? 'Roster sync status unavailable' : 'Checking roster refresh…'}
+      value={state.syncedAt}
+      fallback={state.isError ? 'Unavailable' : 'Checking…'}
+    >
+      <p className="mt-1 text-xs text-muted-foreground">
+        Refreshed from Bitrix on weekdays; names only
+      </p>
+    </FreshnessRow>
+  );
+}
+
+/**
+ * Header readout of how current the dashboard's datasets are. They come from
+ * different places and are dated differently -- presented deals by when the
+ * Bitrix sync job last ran, sourced deals by when this browser pulled them, the
+ * associate and client rosters by when their own scheduled job last stamped
  * them (see useDataFreshness) -- so they are listed separately rather than
- * merged into one number that would be true of neither.
+ * merged into one number that would be true of none of them.
  */
 export function SyncStatus() {
   useTick(TICK_MS);
-  const { presented, sourced } = useDataFreshness();
+  const { presented, sourced, associates, clients } = useDataFreshness();
 
   const isBusy = presented.isPending || sourced.isFetching;
   const runFailed = presented.lastRunStatus !== null && presented.lastRunStatus !== 'success';
@@ -172,6 +193,14 @@ export function SyncStatus() {
           fallback={sourced.isFetching ? 'Loading…' : 'Not loaded yet'}
           action={<RefreshSourcedButton isFetching={sourced.isFetching} onRefresh={sourced.refresh} />}
         />
+
+        <DropdownMenuSeparator />
+
+        <RosterRow label="Associates" state={associates} />
+
+        <DropdownMenuSeparator />
+
+        <RosterRow label="Clients" state={clients} />
       </DropdownMenuContent>
     </DropdownMenu>
   );

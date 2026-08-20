@@ -13,9 +13,11 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { InfoCard } from "@/components/cards/InfoCard";
 import { FilterBar } from "@/components/filters/FilterBar";
 import { DateRangeFilter } from "@/components/filters/DateRangeFilter";
+import { TeamFilter } from "@/components/filters/TeamFilter";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TableSkeleton } from "@/components/common/LoadingSkeleton";
+import { TeamLeaderboard } from "@/components/tables/TeamLeaderboard";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSubmissions } from "@/hooks/useSubmissions";
+import { NO_TEAM } from "@/utils/dealMeta";
 import { describeRange } from "@/utils/dateRange";
 import { downloadCsv, downloadXlsx } from "@/utils/exportFile";
 import {
@@ -88,14 +91,31 @@ export default function PresentedDeals() {
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
   const [search, setSearch] = useState("");
+  const [team, setTeam] = useState("All");
+  const [excludeDismissed, setExcludeDismissed] = useState(false);
   const [sort, setSort] = useState({ field: "total", direction: "desc" });
   const [expandedAssociates, setExpandedAssociates] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
 
-  const { presentedDealsData, getExportRows, appliedRange, isLoading, isError, error } =
+  const { presentedDealsData, teams, getExportRows, appliedRange, isLoading, isError, error } =
     useSubmissions(dateFrom, dateTo);
 
-  const hasActiveFilters = dateFrom !== null || dateTo !== null || search !== "";
+  // The teams the roster still staffs (see listTeams), plus a bucket for the
+  // associates it records no team for -- departed staff and anyone whose name
+  // never matched a roster row, who would otherwise only ever be reachable
+  // through "All Teams".
+  const teamOptions = useMemo(
+    () =>
+      [...teams, NO_TEAM].map((name) => ({ value: name, label: name })),
+    [teams],
+  );
+
+  const hasActiveFilters =
+    dateFrom !== null ||
+    dateTo !== null ||
+    search !== "" ||
+    team !== "All" ||
+    excludeDismissed;
   const appliedRangeLabel = describeRange(
     appliedRange.dateFrom,
     appliedRange.dateTo,
@@ -105,6 +125,8 @@ export default function PresentedDeals() {
     setDateFrom(null);
     setDateTo(null);
     setSearch("");
+    setTeam("All");
+    setExcludeDismissed(false);
   };
 
   function toggleSort(field) {
@@ -117,6 +139,17 @@ export default function PresentedDeals() {
 
   const filteredData = useMemo(() => {
     let result = presentedDealsData;
+    // Whole associates in or out, like the search below -- their client rows
+    // belong to them, so the breakdown follows without being filtered itself.
+    if (team !== "All") {
+      result = result.filter((associate) => associate.team === team);
+    }
+    // Departed staff still own their historical deals, so they are in the rows
+    // by default; this drops them and everything they sourced or presented,
+    // leaving the figures to describe only people still with the company.
+    if (excludeDismissed) {
+      result = result.filter((associate) => !associate.isDismissed);
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter((associate) =>
@@ -127,7 +160,7 @@ export default function PresentedDeals() {
       );
     }
     return result;
-  }, [presentedDealsData, search]);
+  }, [presentedDealsData, search, team, excludeDismissed]);
 
   const sortedData = useMemo(() => {
     const dir = sort.direction === "asc" ? 1 : -1;
@@ -226,6 +259,7 @@ export default function PresentedDeals() {
     <PageContainer
       title="Presented Deals"
       subtitle="Presented deals grouped by associate and client"
+      isLoading={isLoading}
     >
       {isError ? (
         <ErrorState message={error?.message || "Failed to load data"} />
@@ -242,6 +276,16 @@ export default function PresentedDeals() {
                 className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:w-56"
               />
             </div>
+            <TeamFilter value={team} onChange={setTeam} options={teamOptions} />
+            <label className="flex h-9 cursor-pointer select-none items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm text-foreground transition-colors hover:bg-muted">
+              <input
+                type="checkbox"
+                checked={excludeDismissed}
+                onChange={(e) => setExcludeDismissed(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer accent-primary"
+              />
+              Exclude dismissed users
+            </label>
             <DateRangeFilter
               from={dateFrom}
               to={dateTo}
@@ -314,6 +358,10 @@ export default function PresentedDeals() {
             </div>
           </div>
 
+          {/* Fed the same filtered rows the table below renders, so the board
+              and the breakdown always tell the same story. */}
+          <TeamLeaderboard rows={filteredData} isLoading={isLoading} />
+
           <InfoCard
             title="Presented Deals"
             subtitle="Deals grouped by associate and client. Accepted, rejected and on hold count presented deals by where they moved after Video Presentation; awaiting response counts those still sitting in it."
@@ -353,7 +401,7 @@ export default function PresentedDeals() {
               <TableSkeleton rows={8} columns={COLUMNS.length} className="border-0 shadow-none" />
             ) : sortedData.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                {search || dateFrom || dateTo
+                {search || dateFrom || dateTo || team !== "All" || excludeDismissed
                   ? "No presented deals match your filters."
                   : "No presented deals found."}
               </div>

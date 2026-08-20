@@ -1,4 +1,4 @@
-import { format, formatDistanceToNow, isValid } from 'date-fns';
+import { format, formatDistanceToNow, isValid, parseISO } from 'date-fns';
 
 export function formatCurrency(amount, currency = 'USD') {
   if (amount === null || amount === undefined || Number.isNaN(amount)) return '—';
@@ -40,6 +40,24 @@ export function formatDate(dateInput, pattern = 'MMM d, yyyy') {
   if (!dateInput) return 'N/A';
   const date = new Date(dateInput);
   if (!isValid(date)) return 'N/A';
+  return format(date, pattern);
+}
+
+/**
+ * A calendar day with no time attached ('2024-11-28', as Postgres `date`
+ * columns come back over PostgREST) — not the same job as formatDate above.
+ *
+ * `new Date('2024-11-28')` anchors a date-only string to UTC midnight, which
+ * date-fns then renders in the reader's zone: the 27th for anyone west of
+ * Greenwich, i.e. most of this dashboard's audience. parseISO reads a bare date
+ * as local midnight instead, so the day survives the round trip. Returns '—'
+ * rather than formatDate's 'N/A' to match the numeric formatters it sits
+ * beside in a table row.
+ */
+export function formatDateOnly(dateInput, pattern = 'MMM d, yyyy') {
+  if (!dateInput) return '—';
+  const date = parseISO(String(dateInput));
+  if (!isValid(date)) return '—';
   return format(date, pattern);
 }
 

@@ -16,10 +16,10 @@ import { cn } from '@/utils/cn';
 const COLUMNS = [
   { key: 'associate', label: 'Associate' },
   { key: 'total', label: 'Total Deals', align: 'right' },
-  { key: 'won', label: 'Won', align: 'right' },
+  { key: 'won', label: 'Closed', align: 'right' },
   { key: 'active', label: 'Active', align: 'right' },
-  { key: 'lost', label: 'Lost', align: 'right' },
-  { key: 'winRate', label: 'Win Rate', align: 'right' },
+  { key: 'lost', label: 'Axed', align: 'right' },
+  { key: 'winRate', label: 'Close Rate', align: 'right' },
   { key: 'axedRate', label: 'Axed Rate', align: 'right' },
 ];
 
@@ -80,7 +80,11 @@ export default function Associates() {
     : 0;
 
   return (
-    <PageContainer title="Associates" subtitle="Performance and workload by team member">
+    <PageContainer
+      title="Associates"
+      subtitle="Performance and workload by team member"
+      isLoading={isLoading}
+    >
       {isError ? (
         <ErrorState message={error?.message} onRetry={refetch} />
       ) : (
@@ -108,11 +112,11 @@ export default function Associates() {
               isLoading={isLoading}
             />
             <StatCard
-              label="Avg Win Rate"
+              label="Avg Close Rate"
               value={formatPercent(avgWinRate)}
               icon={TrendingUp}
               color="good"
-              description="Average win rate across closed deals, per associate"
+              description="Average close rate across finished deals, per associate"
               isLoading={isLoading}
             />
           </div>

@@ -33,17 +33,18 @@ import {
   OFFBOARDED_STATUSES,
   CLIENT_STATUS_ORDER,
 } from "@/utils/clientFields";
-import { formatPercent, formatNumber } from "@/utils/format";
+import { formatPercent, formatNumber, formatDateOnly } from "@/utils/format";
 import { cn } from "@/utils/cn";
 
 const COLUMNS = [
   { key: "client", label: "Client" },
   { key: "status", label: "Status" },
+  { key: "dealFlowStart", label: "Deal Flow Start" },
   { key: "total", label: "Total Deals", align: "right" },
-  { key: "won", label: "Won", align: "right" },
+  { key: "won", label: "Closed", align: "right" },
   { key: "active", label: "Active", align: "right" },
-  { key: "lost", label: "Lost", align: "right" },
-  { key: "winRate", label: "Win Rate", align: "right" },
+  { key: "lost", label: "Axed", align: "right" },
+  { key: "winRate", label: "Close Rate", align: "right" },
   { key: "axedRate", label: "Axed Rate", align: "right" },
 ];
 
@@ -133,7 +134,7 @@ export default function Clients() {
   // The "All Clients" table only lists clients with at least one deal in
   // Bitrix — the KPIs/chart/filter above stay scoped to the full roster
   // (including zero-deal contacts like "Setting Up"), but the table itself
-  // is deal-outcome focused (Total/Won/Active/Lost/Win Rate), which reads as
+  // is deal-outcome focused (Total/Closed/Active/Axed/Close Rate), which reads as
   // empty noise for contacts that have never had a deal.
   const clientsWithDeals = useMemo(
     () => allClients.filter((c) => c.total > 0),
@@ -152,6 +153,12 @@ export default function Clients() {
     const dir = sort.direction === "asc" ? 1 : -1;
     return [...searchedClients].sort((a, b) => {
       const [av, bv] = [a[sort.field], b[sort.field]];
+      // Deal Flow Start is the first sortable column that can be empty, and a
+      // null compares neither greater nor less than a date — without this the
+      // comparator returns 0 for every such pair and dateless clients stay
+      // wherever the previous sort left them. Park them last in both
+      // directions instead. ISO dates sort correctly as plain strings.
+      if (av == null || bv == null) return av == bv ? 0 : av == null ? 1 : -1;
       return (av > bv ? 1 : av < bv ? -1 : 0) * dir;
     });
   }, [searchedClients, sort]);
@@ -186,6 +193,7 @@ export default function Clients() {
     <PageContainer
       title="Clients"
       subtitle="Deal volume and outcomes by client contact"
+      isLoading={isLoading}
     >
       {isError ? (
         <ErrorState message={error?.message} onRetry={refetch} />
@@ -281,7 +289,7 @@ export default function Clients() {
             {isLoading ? (
               <TableSkeleton
                 rows={8}
-                columns={8}
+                columns={COLUMNS.length}
                 className="border-0 shadow-none"
               />
             ) : (
@@ -329,6 +337,9 @@ export default function Clients() {
                             status={row.status}
                             variant={getClientStatusVariant(row.status)}
                           />
+                        </td>
+                        <td className="table-td whitespace-nowrap text-muted-foreground">
+                          {formatDateOnly(row.dealFlowStart)}
                         </td>
                         <td className="table-td text-right tabular-nums">
                           {formatNumber(row.total)}

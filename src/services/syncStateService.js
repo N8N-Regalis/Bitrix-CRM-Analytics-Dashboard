@@ -37,3 +37,29 @@ export async function fetchSyncState(syncKey) {
     lastRunStatus: data?.last_run_status ?? null,
   };
 }
+
+/**
+ * The name rosters are kept current by their own scheduled job rather than the
+ * Bitrix -> Supabase sync, so they have no `sync_state` row to read. Instead
+ * each refresh stamps every row it writes with one `synced_at` taken at the top
+ * of the run (see scripts/refresh-associate-names.mjs and
+ * scripts/refresh-client-data.mjs), which makes the newest value in the table
+ * the time that job last completed.
+ *
+ * Newest rather than any row: the scripts upsert and never delete, so a record
+ * Bitrix has stopped returning keeps the older stamp it was last written with.
+ */
+export async function fetchRosterSyncedAt(table) {
+  const { data, error } = await supabase
+    .from(table)
+    .select('synced_at')
+    // Postgres sorts NULLs first on a descending order, which would report
+    // "unknown" for the whole table if a single row were ever left unstamped.
+    .order('synced_at', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data?.synced_at ?? null;
+}

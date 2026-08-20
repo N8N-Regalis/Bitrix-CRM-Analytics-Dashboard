@@ -3,6 +3,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { MetricCard } from '@/components/cards/MetricCard';
 import { InfoCard } from '@/components/cards/InfoCard';
 import { AssociatePerformanceChart } from '@/components/charts/AssociatePerformanceChart';
+import { TeamLeadPerformanceChart } from '@/components/charts/TeamLeadPerformanceChart';
 import { MonthlyGrowthChart } from '@/components/charts/MonthlyGrowthChart';
 import { DealAgingChart } from '@/components/charts/DealAgingChart';
 import { MonthlyTrendChart } from '@/components/charts/MonthlyTrendChart';
@@ -17,6 +18,7 @@ export default function Analytics() {
     conversionRate,
     monthlyGrowth,
     dealsByAssociate,
+    dealsByTeamLead,
     dealsByPipeline,
     dealAging,
     winLossRatio,
@@ -28,11 +30,16 @@ export default function Analytics() {
   } = useAnalytics();
 
   const latestGrowth = [...monthlyGrowth].reverse().find((m) => m.growth !== null);
-  const closedTotal = winLossRatio.won + winLossRatio.lost;
-  const wonShare = closedTotal > 0 ? (winLossRatio.won / closedTotal) * 100 : 0;
+  // "Finished" = closed + axed, i.e. every deal that reached an outcome.
+  const finishedTotal = winLossRatio.won + winLossRatio.lost;
+  const closedShare = finishedTotal > 0 ? (winLossRatio.won / finishedTotal) * 100 : 0;
 
   return (
-    <PageContainer title="Analytics" subtitle="Conversion, growth, and pipeline trends">
+    <PageContainer
+      title="Analytics"
+      subtitle="Conversion, growth, and pipeline trends"
+      isLoading={isLoading}
+    >
       {isError ? (
         <ErrorState message={error?.message} onRetry={refetch} />
       ) : (
@@ -41,7 +48,7 @@ export default function Analytics() {
             <MetricCard
               title="Conversion Rate"
               value={formatPercent(conversionRate.rate)}
-              description={`${formatNumber(conversionRate.won)} won of ${formatNumber(conversionRate.closed)} closed`}
+              description={`${formatNumber(conversionRate.won)} closed vs. ${formatNumber(conversionRate.lost)} axed`}
               icon={Percent}
               accent="primary"
               isLoading={isLoading}
@@ -55,37 +62,37 @@ export default function Analytics() {
               isLoading={isLoading}
             />
             <MetricCard
-              title="Won Deals"
+              title="Closed Deals"
               value={formatNumber(winLossRatio.won)}
-              description={`${formatPercent(wonShare)} of closed deals`}
+              description={`${formatPercent(closedShare)} of finished deals`}
               icon={Trophy}
               accent="good"
               isLoading={isLoading}
             />
             <MetricCard
-              title="Lost Deals"
+              title="Axed Deals"
               value={formatNumber(winLossRatio.lost)}
-              description={`${formatPercent(100 - wonShare)} of closed deals`}
+              description={`${formatPercent(100 - closedShare)} of finished deals`}
               icon={XCircle}
               accent="critical"
               isLoading={isLoading}
             />
           </div>
 
-          <InfoCard title="Win / Loss Ratio" subtitle="Share of closed deals that were won vs. lost">
+          <InfoCard title="Closed / Axed Ratio" subtitle="Share of finished deals that were closed vs. axed">
             {isLoading ? (
               <CardSkeleton className="border-0 shadow-none" />
-            ) : closedTotal === 0 ? (
-              <EmptyState title="No closed deals yet" message="Won/lost breakdown will appear once deals close." />
+            ) : finishedTotal === 0 ? (
+              <EmptyState title="No finished deals yet" message="The closed/axed breakdown will appear once deals finish." />
             ) : (
               <div className="space-y-2">
                 <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                  <div style={{ width: `${wonShare}%`, backgroundColor: 'var(--status-good)' }} />
-                  <div style={{ width: `${100 - wonShare}%`, backgroundColor: 'var(--status-critical)' }} />
+                  <div style={{ width: `${closedShare}%`, backgroundColor: 'var(--status-good)' }} />
+                  <div style={{ width: `${100 - closedShare}%`, backgroundColor: 'var(--status-critical)' }} />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Won — {formatNumber(winLossRatio.won)} ({formatPercent(wonShare)})</span>
-                  <span>Lost — {formatNumber(winLossRatio.lost)} ({formatPercent(100 - wonShare)})</span>
+                  <span>Closed — {formatNumber(winLossRatio.won)} ({formatPercent(closedShare)})</span>
+                  <span>Axed — {formatNumber(winLossRatio.lost)} ({formatPercent(100 - closedShare)})</span>
                 </div>
               </div>
             )}
@@ -123,12 +130,7 @@ export default function Analytics() {
               )}
             </InfoCard>
 
-            <InfoCard title="Deals by Team Lead" subtitle="Performance rolled up by team">
-              <EmptyState
-                title="No team hierarchy synced yet"
-                message="Bitrix associates aren't grouped into teams in Supabase, so this breakdown can't be computed without fabricating data. See Deals by Associate above in the meantime."
-              />
-            </InfoCard>
+            <TeamLeadPerformanceChart data={dealsByTeamLead} isLoading={isLoading} />
           </div>
         </div>
       )}

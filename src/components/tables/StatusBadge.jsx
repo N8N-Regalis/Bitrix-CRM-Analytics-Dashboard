@@ -12,12 +12,12 @@ const VARIANT_STYLES = {
   muted: 'bg-muted text-muted-foreground',
 };
 
-// Deal status (Won/Lost/Active) is the original, most common caller -- keep
+// Deal status (Closed/Axed/Active) is the original, most common caller -- keep
 // its variant mapping as the default so existing callers don't need to pass
 // `variant` explicitly.
 const DEAL_STATUS_VARIANTS = {
-  Won: 'good',
-  Lost: 'critical',
+  Closed: 'good',
+  Axed: 'critical',
   Active: 'primary',
 };
 

@@ -4,7 +4,12 @@ import { fetchAllSubmissions, SUBMISSIONS_QUERY_KEY } from '@/services/submissio
 import { fetchAssociateEmailMap } from '@/services/namesService';
 import { fetchPresentedDeals } from '@/services/presentedDealsService';
 import { nameKey } from '@/utils/nameMatch';
-import { resolveClientName } from '@/utils/dealMeta';
+import {
+  getAssociateTeam,
+  isDismissedAssociate,
+  listTeams,
+  resolveClientName,
+} from '@/utils/dealMeta';
 import { resolveDateRange } from '@/utils/dateRange';
 
 export function useSubmissionsQuery() {
@@ -140,7 +145,11 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
   const emailToName = usersQuery.data ?? NO_NAMES;
   const presentedDeals = presentedQuery.data ?? NO_ROWS;
 
-  const presentedDealsData = useMemo(() => {
+  // The rows, and the team list the page's filter offers. Built together
+  // because both read the name registry, which is a module store React cannot
+  // depend on: recomputing them side by side is what keeps the options in step
+  // with the rows once the roster has loaded.
+  const { presentedDealsData, teams } = useMemo(() => {
     // associate key -> { name, clients: Map<client key, row> }
     const byAssociate = new Map();
 
@@ -189,7 +198,7 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
       else if (deal.outcome === 'awaiting') row.awaiting += 1;
     });
 
-    return Array.from(byAssociate.values())
+    const rows = Array.from(byAssociate.values())
       .map(({ name, clients }) => {
         const clientRows = Array.from(clients.values()).sort(
           (a, b) => b.count - a.count || b.presented - a.presented
@@ -200,6 +209,12 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
 
         return {
           name,
+          // Resolved here rather than in the page so the team travels with the
+          // row it describes -- the filter, the stats and the export all read
+          // the same value.
+          team: getAssociateTeam(name),
+          // Same reasoning: the roster's is_active flag, reached by name.
+          isDismissed: isDismissedAssociate(name),
           clients: clientRows,
           total: sumOf('count'),
           presented: sumOf('presented'),
@@ -210,6 +225,8 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
+
+    return { presentedDealsData: rows, teams: listTeams() };
   }, [submissions, emailToName, presentedDeals, dateFrom, dateTo]);
 
   const getExportRows = useCallback(
@@ -227,6 +244,7 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
 
   return {
     presentedDealsData,
+    teams,
     // Called when an export is requested, not on render -- see collectExportRows.
     getExportRows,
     // The range actually applied, so the page can state it rather than leave

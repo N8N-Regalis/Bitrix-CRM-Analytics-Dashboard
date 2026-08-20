@@ -8,7 +8,9 @@ const LIST_COLUMNS =
 const PAGE_SIZE = 1000;
 
 function normalizeDeal(row) {
-  const status = row.is_won ? 'Won' : row.is_closed ? 'Lost' : 'Active';
+  // `status` is the label the UI renders and filters on, so it uses the app's
+  // vocabulary (Closed/Axed), not Bitrix's won/lost columns it derives from.
+  const status = row.is_won ? 'Closed' : row.is_closed ? 'Axed' : 'Active';
 
   return {
     id: row.deal_id,

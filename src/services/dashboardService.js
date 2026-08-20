@@ -1,4 +1,10 @@
-import { STAGE_ORDER, getStageLabel, getClientLabel, getClientStatus } from '@/utils/dealMeta';
+import {
+  STAGE_ORDER,
+  getStageLabel,
+  getClientLabel,
+  getClientStatus,
+  getClientDealFlowStart,
+} from '@/utils/dealMeta';
 import { CLIENT_STATUS_ORDER } from '@/utils/clientFields';
 import { liveClientIds } from '@/utils/nameRegistry';
 import { ordinalFill } from '@/utils/ordinalColor';
@@ -14,8 +20,8 @@ export function getKpis(deals) {
   let won = 0;
   let lost = 0;
   for (const deal of deals) {
-    if (deal.status === 'Won') won += 1;
-    else if (deal.status === 'Lost') lost += 1;
+    if (deal.status === 'Closed') won += 1;
+    else if (deal.status === 'Axed') lost += 1;
   }
   return { total, active: total - won - lost, won, lost };
 }
@@ -149,8 +155,8 @@ export function getAssociatePerformance(deals, limit = 10) {
     }
     const bucket = byOwner.get(key);
     bucket.total += 1;
-    if (deal.status === 'Won') bucket.won += 1;
-    else if (deal.status === 'Lost') bucket.lost += 1;
+    if (deal.status === 'Closed') bucket.won += 1;
+    else if (deal.status === 'Axed') bucket.lost += 1;
     else bucket.active += 1;
   }
 
@@ -180,6 +186,11 @@ export function getClientPerformance(deals, limit = 10) {
         client: deal.clientLabel,
         contactId: deal.contactId,
         status: deal.clientStatus,
+        // Looked up here rather than carried on every normalized deal the way
+        // clientStatus is: it's a per-contact attribute with one consumer (the
+        // Clients table), so copying it onto all ~30k deal rows would buy
+        // nothing. Same lookup either way -- both read the client roster.
+        dealFlowStart: getClientDealFlowStart(deal.contactId),
         total: 0,
         won: 0,
         lost: 0,
@@ -188,8 +199,8 @@ export function getClientPerformance(deals, limit = 10) {
     }
     const bucket = byClient.get(key);
     bucket.total += 1;
-    if (deal.status === 'Won') bucket.won += 1;
-    else if (deal.status === 'Lost') bucket.lost += 1;
+    if (deal.status === 'Closed') bucket.won += 1;
+    else if (deal.status === 'Axed') bucket.lost += 1;
     else bucket.active += 1;
   }
 
@@ -200,6 +211,7 @@ export function getClientPerformance(deals, limit = 10) {
         client: getClientLabel(id),
         contactId: id,
         status: getClientStatus(id),
+        dealFlowStart: getClientDealFlowStart(id),
         total: 0,
         won: 0,
         lost: 0,

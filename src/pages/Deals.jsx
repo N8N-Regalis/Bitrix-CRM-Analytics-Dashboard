@@ -11,7 +11,7 @@ import { DealsTable } from '@/components/tables/DealsTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { useDeals, useDealsQuery } from '@/hooks/useDeals';
 
-const STATUS_OPTIONS = ['All', 'Active', 'Won', 'Lost'];
+const STATUS_OPTIONS = ['All', 'Active', 'Closed', 'Axed'];
 
 export default function Deals() {
   const { data: allDeals = [] } = useDealsQuery();
@@ -83,7 +83,11 @@ export default function Deals() {
     filters.dateTo !== null;
 
   return (
-    <PageContainer title="Deals" subtitle="Browse and filter every deal synced from Bitrix24">
+    <PageContainer
+      title="Deals"
+      subtitle="Browse and filter every deal synced from Bitrix24"
+      isLoading={isLoading}
+    >
       {isError ? (
         <ErrorState message={error?.message} onRetry={refetch} />
       ) : (

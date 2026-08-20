@@ -108,6 +108,16 @@ export default function StageMovement() {
     [openRows, dealsById, activityDates]
   );
 
+  const isLoading =
+    dealsQuery.isLoading ||
+    durationStatsQuery.isLoading ||
+    topTransitionsQuery.isLoading ||
+    totalMovementQuery.isLoading ||
+    openStageQuery.isLoading ||
+    recentTransitionsQuery.isLoading ||
+    allTransitionsQuery.isLoading ||
+    isLoadingActivities;
+
   const isError =
     dealsQuery.isError ||
     durationStatsQuery.isError ||
@@ -139,7 +149,11 @@ export default function StageMovement() {
   const totalPages = Math.max(1, Math.ceil((recent.total || 0) / (recent.pageSize || 20)));
 
   return (
-    <PageContainer title="Stage Movement" subtitle="How deals flow between pipeline stages over time">
+    <PageContainer
+      title="Stage Movement"
+      subtitle="How deals flow between pipeline stages over time"
+      isLoading={isLoading}
+    >
       {isError ? (
         <ErrorState message={error?.message} onRetry={refetchAll} />
       ) : (

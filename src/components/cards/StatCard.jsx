@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { CardSkeleton } from '@/components/common/LoadingSkeleton';
 
 // 'good'/'warning'/'critical' use the fixed status palette (never themed) —
-// reserve them for real state meaning (won/lost, stalled, at-risk).
+// reserve them for real state meaning (closed/axed, stalled, at-risk).
 // 'primary'/'indigo'/'purple' are plain identity accents.
 const COLOR_STYLES = {
   primary: 'bg-primary/10 text-primary',

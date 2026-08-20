@@ -4,7 +4,9 @@
 // resolves CLIENT_STATUS_FIELD codes into the `clients` table's status column
 // via CLIENT_STATUS_LOOKUP) and by getClientStatus() in dealMeta.js. Originally
 // staged here from the reference app (Bitrix Dashboard App/src/utils/bitrix.js).
-export const TEAM_FIELD = 'UF_USR_1779466932710';
+// Not to be confused with the Bitrix *user* field also called "Team Leader
+// Name" (UF_USR_1779466932710, owned by scripts/refresh-associate-names.mjs):
+// this UF_CRM one hangs off the contact and names the lead on the client side.
 export const TEAM_LEAD_FIELD = 'UF_CRM_1782826965894';
 export const CLIENT_STATUS_FIELD = 'UF_CRM_1755185977882';
 export const DEAL_FLOW_START_DATE_FIELD = 'UF_CRM_1755184781147';

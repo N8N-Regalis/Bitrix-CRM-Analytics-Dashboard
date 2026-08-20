@@ -1,7 +1,11 @@
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchAllSubmissions, SUBMISSIONS_QUERY_KEY } from '@/services/submissionsService';
-import { fetchSyncState, STAGE_HISTORY_SYNC_KEY } from '@/services/syncStateService';
+import {
+  fetchRosterSyncedAt,
+  fetchSyncState,
+  STAGE_HISTORY_SYNC_KEY,
+} from '@/services/syncStateService';
 
 const SYNC_POLL_MS = 5 * 60 * 1000;
 
@@ -85,9 +89,32 @@ export function useSourcedFetchedAt() {
   return { fetchedAt: dataUpdatedAt || null, isFetching, isError, refresh };
 }
 
+/**
+ * When the `associates` or `clients` roster was last refreshed from Bitrix.
+ *
+ * These date the names on screen rather than any number: the rosters are what
+ * turn assigned_by_id and contact_id into people (see namesService), so a stale
+ * one shows a recently added associate or client as an unresolved ID while
+ * every metric stays correct. Polled on the same interval as the sync state so
+ * one open panel reports all four datasets as of the same moment.
+ */
+function useRosterSyncedAt(table) {
+  const { data, isPending, isError } = useQuery({
+    queryKey: ['roster-synced-at', table],
+    queryFn: () => fetchRosterSyncedAt(table),
+    staleTime: 60 * 1000,
+    refetchInterval: SYNC_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+
+  return { syncedAt: data ?? null, isPending, isError };
+}
+
 export function useDataFreshness() {
   return {
     presented: usePresentedSyncState(),
     sourced: useSourcedFetchedAt(),
+    associates: useRosterSyncedAt('associates'),
+    clients: useRosterSyncedAt('clients'),
   };
 }

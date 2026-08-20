@@ -1,10 +1,15 @@
 import { cleanName, nameKey } from '@/utils/nameMatch';
 import {
   getNameRevision,
+  isInactiveAssociate,
   lookupAssociateName,
   lookupAssociateNameByEmail,
+  lookupAssociateTeamLeadId,
   lookupClientName,
   lookupClientStatus,
+  lookupClientDealFlowStart,
+  liveAssociateNames,
+  liveAssociateTeams,
   liveClientNames,
 } from '@/utils/nameRegistry';
 
@@ -243,10 +248,147 @@ export function resolveClientName(partnerName) {
   return (shortKey && clientNameIndex.byFirstLast.get(shortKey)) || cleaned;
 }
 
+// Team lookup, keyed by display name rather than associate id: the Presented
+// Deals page joins two databases that share no id and identifies an associate
+// only by name (see nameMatch.js), so a name is all it has to filter on.
+// Rebuilt on a registry change, like the client index above.
+let teamIndex = null;
+let teamIndexRevision = -1;
+
+// The bucket for everyone the roster records no team for -- 114 of 178
+// associates, mostly departed staff, plus anyone whose name never resolved to a
+// roster row at all. Named rather than left null so it can be picked in the
+// filter and read in a label.
+export const NO_TEAM = 'No Team';
+
+function buildTeamIndex() {
+  const teamById = new Map();
+  const teamOfLead = new Map();
+  // Teams with at least one member Bitrix still flags is_active -- the ones the
+  // filter offers. A team whose every member has left is a historical grouping,
+  // not somewhere deals are being worked now, so listing it gives the reader a
+  // choice that can only ever return departed staff.
+  const staffedTeams = new Set();
+
+  for (const [id, team] of liveAssociateTeams()) {
+    teamById.set(id, team);
+    // Leads are absent from this loop (their own team_leader_name is empty), so
+    // this counts the people they lead. Deliberately: a lead who still has an
+    // account but no remaining reports is running nothing, and their own book
+    // of business stays reachable through All Teams.
+    if (!isInactiveAssociate(id)) staffedTeams.add(team);
+    // Each member also points at their lead's id, which is the only route from
+    // a team to the person running it: team_leader_name holds a nickname
+    // ("EA", "Rox") that matches no associate's name.
+    const leadId = lookupAssociateTeamLeadId(id);
+    if (leadId !== null && leadId !== undefined) teamOfLead.set(String(leadId), team);
+  }
+
+  // A lead's own deals count toward their own team. Leads carry a book of
+  // business themselves but nobody leads them, so their team_leader_name is
+  // empty and without this their work sits outside every team -- the same rule
+  // getDealsByTeamLead applies in analyticsService.
+  for (const [leadId, team] of teamOfLead) {
+    if (!teamById.has(leadId)) teamById.set(leadId, team);
+  }
+
+  const byName = new Map();
+  for (const [id, name] of liveAssociateNames()) {
+    // Only teamed ids write, so a namesake with no team can't overwrite a
+    // teamed one. No two roster names currently collide at all.
+    const team = teamById.get(id);
+    if (team) byName.set(nameKey(name), team);
+  }
+
+  // `byName` covers every team, staffed or not, so a row still carries the team
+  // it actually belongs to and the leaderboard still rolls it up -- only the
+  // filter's option list is narrowed.
+  return {
+    byName,
+    teams: [...staffedTeams].sort((a, b) => a.localeCompare(b)),
+  };
+}
+
+function currentTeamIndex() {
+  if (!teamIndex || teamIndexRevision !== getNameRevision()) {
+    teamIndex = buildTeamIndex();
+    teamIndexRevision = getNameRevision();
+  }
+  return teamIndex;
+}
+
+/** The team an associate sits on, from associates.team_leader_name. NO_TEAM
+ * when the roster has none for them. */
+export function getAssociateTeam(associateName) {
+  return currentTeamIndex().byName.get(nameKey(associateName)) || NO_TEAM;
+}
+
+/** Every team with someone still employed on it, alphabetically -- the filter's
+ * options. Read from the roster rather than from whatever rows are on screen,
+ * so narrowing a date range can't make a team disappear from the list while it
+ * is selected.
+ *
+ * A team every member has left keeps its rows (getAssociateTeam still returns
+ * it, and the leaderboard still shows it) but is not offered here; those rows
+ * are reached through All Teams. */
+export function listTeams() {
+  return currentTeamIndex().teams;
+}
+
+// Dismissed staff, keyed by display name for the same reason the team index is:
+// the Presented Deals rows are joined across two databases on name alone, so an
+// id-keyed lookup has nothing to key on there. Rebuilt on a registry change.
+let dismissedIndex = null;
+let dismissedIndexRevision = -1;
+
+function currentDismissedNames() {
+  if (!dismissedIndex || dismissedIndexRevision !== getNameRevision()) {
+    const dismissed = new Set();
+    const employed = new Set();
+
+    for (const [id, name] of liveAssociateNames()) {
+      (isInactiveAssociate(id) ? dismissed : employed).add(nameKey(name));
+    }
+
+    // A name carried by both a dismissed and a still-employed account belongs
+    // to the employed one as far as this filter is concerned -- hiding rows
+    // that may be the current employee's would understate their figures, while
+    // keeping a leaver visible only fails to hide them. No two roster names
+    // currently collide, but the choice is made explicitly rather than left to
+    // iteration order.
+    for (const key of employed) dismissed.delete(key);
+
+    dismissedIndex = dismissed;
+    dismissedIndexRevision = getNameRevision();
+  }
+  return dismissedIndex;
+}
+
+/**
+ * Whether an associate is flagged is_active=false in Bitrix -- someone who has
+ * left but still owns their historical deals.
+ *
+ * False for a name the roster doesn't recognize at all: the submissions rows
+ * fall back to the raw sourcer email when no associate matches, and an
+ * unmatched name is unknown rather than dismissed.
+ */
+export function isDismissedAssociate(associateName) {
+  return currentDismissedNames().has(nameKey(associateName));
+}
+
 // A client's relationship-lifecycle status, carried on the same `clients` row
 // as the name. Contacts whose Bitrix status maps to nothing recognized are
 // stored as null, hence the fallback here rather than in the sync.
 export function getClientStatus(contactId) {
   if (contactId === null || contactId === undefined) return 'Unassigned';
   return lookupClientStatus(contactId) || 'Unassigned';
+}
+
+// The day a client entered deal flow, from the same `clients` row again. Null
+// rather than a placeholder string for the ~43 contacts Bitrix has no date for:
+// unlike status there is no sensible stand-in value, and callers need to tell
+// "no date" apart from a real one to sort and format it.
+export function getClientDealFlowStart(contactId) {
+  if (contactId === null || contactId === undefined) return null;
+  return lookupClientDealFlowStart(contactId) ?? null;
 }

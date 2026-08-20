@@ -4,8 +4,12 @@ import {
   associateEmailMap,
   registerAssociateEmails,
   registerAssociateNames,
+  registerAssociateTeamLeads,
+  registerAssociateTeams,
+  registerInactiveAssociates,
   registerClientNames,
   registerClientStatuses,
+  registerClientDealFlowStarts,
 } from '@/utils/nameRegistry';
 
 /**
@@ -67,12 +71,19 @@ async function loadNames() {
   // `display_name` resolves to name_override when someone has corrected a name
   // by hand, and to the Bitrix name otherwise -- see the table definition.
   const [associates, clients] = await Promise.all([
-    fetchAll('associates', 'bitrix_id, display_name, email'),
-    fetchAll('clients', 'bitrix_id, display_name, status'),
+    fetchAll(
+      'associates',
+      'bitrix_id, display_name, email, team_leader_id, team_leader_name, is_active'
+    ),
+    fetchAll('clients', 'bitrix_id, display_name, status, deal_flow_start_date'),
   ]);
 
   registerAssociateNames(associates.map((row) => [row.bitrix_id, row.display_name]));
   registerAssociateEmails(associates.map((row) => [row.email, row.display_name]));
+  registerAssociateTeamLeads(associates.map((row) => [row.bitrix_id, row.team_leader_id]));
+  registerAssociateTeams(associates.map((row) => [row.bitrix_id, row.team_leader_name]));
+  registerInactiveAssociates(associates.filter((row) => row.is_active === false).map((row) => row.bitrix_id));
   registerClientNames(clients.map((row) => [row.bitrix_id, cleanName(row.display_name)]));
   registerClientStatuses(clients.map((row) => [row.bitrix_id, row.status]));
+  registerClientDealFlowStarts(clients.map((row) => [row.bitrix_id, row.deal_flow_start_date]));
 }

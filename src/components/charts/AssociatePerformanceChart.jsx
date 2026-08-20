@@ -5,28 +5,28 @@ import { ChartTooltip, chartGridProps, truncateLabel } from '@/components/charts
 const COLUMNS = [
   { key: 'associate', label: 'Associate' },
   { key: 'total', label: 'Total' },
-  { key: 'won', label: 'Won' },
+  { key: 'won', label: 'Closed' },
   { key: 'active', label: 'Active' },
-  { key: 'lost', label: 'Lost' },
+  { key: 'lost', label: 'Axed' },
 ];
 
 function renderLegend() {
   return (
     <div className="mt-2 flex items-center justify-center gap-4 text-xs text-muted-foreground">
       <span className="flex items-center gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--status-good)' }} /> Won
+        <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--status-good)' }} /> Closed
       </span>
       <span className="flex items-center gap-1.5">
         <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--chart-1)' }} /> Active
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--status-critical)' }} /> Lost
+        <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--status-critical)' }} /> Axed
       </span>
     </div>
   );
 }
 
-/** Won/Active/Lost are status meaning (pass/pending/fail), so they wear the
+/** Closed/Active/Axed are status meaning (pass/pending/fail), so they wear the
  * fixed status palette rather than generic categorical series colors. */
 export function AssociatePerformanceChart({ data = [], isLoading, className }) {
   const isEmpty = !isLoading && data.length === 0;
@@ -65,9 +65,9 @@ export function AssociatePerformanceChart({ data = [], isLoading, className }) {
           />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
           <Legend content={renderLegend} />
-          <Bar dataKey="won" name="Won" stackId="status" fill="var(--status-good)" />
+          <Bar dataKey="won" name="Closed" stackId="status" fill="var(--status-good)" />
           <Bar dataKey="active" name="Active" stackId="status" fill="var(--chart-1)" />
-          <Bar dataKey="lost" name="Lost" stackId="status" fill="var(--status-critical)" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="lost" name="Axed" stackId="status" fill="var(--status-critical)" radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>
