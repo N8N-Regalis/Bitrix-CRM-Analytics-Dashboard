@@ -3,6 +3,16 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[build.environment]
+  # Matches the pin in .github/workflows/refresh-names.yml so the build image
+  # and CI can't drift.
+  NODE_VERSION = "22"
+  # These three are public by design: Vite inlines them into the client bundle,
+  # which is exactly what Netlify's secrets scanner flags. Omit them or every
+  # build fails. BITRIX_WEBHOOK_BASE is deliberately NOT omitted, so the scanner
+  # still guards the one value that must never ship to the browser.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_CLIENT_ID"
+
 # /api/bitrix/* is served by netlify/functions/bitrix.mjs, which declares its
 # own `config.path`. The SPA fallback below must not swallow it, hence the
 # explicit exclusion before the catch-all.
@@ -16,3 +26,16 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Vite fingerprints everything under /assets, so it is safe to cache forever.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    cache-control = "public, max-age=31536000, immutable"
