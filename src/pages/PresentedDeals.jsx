@@ -92,7 +92,9 @@ export default function PresentedDeals() {
   const [dateTo, setDateTo] = useState(null);
   const [search, setSearch] = useState("");
   const [team, setTeam] = useState("All");
-  const [excludeDismissed, setExcludeDismissed] = useState(false);
+  // Dismissed associates are hidden by default -- the usual question is about
+  // the current roster, so seeing departed staff is the opt-in.
+  const [excludeDismissed, setExcludeDismissed] = useState(true);
   const [sort, setSort] = useState({ field: "total", direction: "desc" });
   const [expandedAssociates, setExpandedAssociates] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
@@ -115,7 +117,7 @@ export default function PresentedDeals() {
     dateTo !== null ||
     search !== "" ||
     team !== "All" ||
-    excludeDismissed;
+    !excludeDismissed;
   const appliedRangeLabel = describeRange(
     appliedRange.dateFrom,
     appliedRange.dateTo,
@@ -126,7 +128,7 @@ export default function PresentedDeals() {
     setDateTo(null);
     setSearch("");
     setTeam("All");
-    setExcludeDismissed(false);
+    setExcludeDismissed(true);
   };
 
   function toggleSort(field) {
