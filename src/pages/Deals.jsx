@@ -10,6 +10,7 @@ import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
 import { DealsTable } from '@/components/tables/DealsTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { useDeals, useDealsQuery } from '@/hooks/useDeals';
+import { describeRange } from '@/utils/dateRange';
 
 const STATUS_OPTIONS = ['All', 'Active', 'Closed', 'Axed'];
 
@@ -21,6 +22,7 @@ export default function Deals() {
   const {
     deals,
     filters,
+    appliedRange,
     updateFilters,
     resetFilters,
     sort,
@@ -72,6 +74,8 @@ export default function Deals() {
       .map(([value, label]) => ({ value: String(value), label }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [allDeals]);
+
+  const appliedRangeLabel = describeRange(appliedRange.dateFrom, appliedRange.dateTo);
 
   const hasActiveFilters =
     filters.search !== '' ||
@@ -126,6 +130,13 @@ export default function Deals() {
               onChangeFrom={(v) => updateFilters({ dateFrom: v })}
               onChangeTo={(v) => updateFilters({ dateTo: v })}
             />
+            {/* One date entered means that one day, so the applied window is
+                stated outright rather than inferred from a half-filled pair. */}
+            {appliedRangeLabel && (
+              <span className="text-sm text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{appliedRangeLabel}</span>
+              </span>
+            )}
           </FilterBar>
 
           <DealsTable

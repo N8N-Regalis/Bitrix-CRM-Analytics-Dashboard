@@ -4,6 +4,7 @@ import { fetchAllSubmissions, SUBMISSIONS_QUERY_KEY } from '@/services/submissio
 import { fetchAssociateEmailMap } from '@/services/namesService';
 import { fetchPresentedDeals } from '@/services/presentedDealsService';
 import { nameKey } from '@/utils/nameMatch';
+import { monthLabel, monthWindow } from '@/services/dashboardService';
 import {
   getAssociateTeam,
   isDismissedAssociate,
@@ -109,6 +110,66 @@ export function collectExportRows({
   );
 
   return { sourced, presented };
+}
+
+/**
+ * Presented deals bucketed by the calendar month of their Presented Date, split
+ * into accepted and rejected -- the monthly view of the same figures the
+ * leaderboard totals.
+ *
+ * The buckets come from monthWindow, so an applied range spans exactly the
+ * months it covers and an unfiltered page shows the trailing 12, matching the
+ * Dashboard's monthly trend. Deals outside that window are dropped rather than
+ * folded into the end months: without a range the table behind this reaches
+ * back years, and piling all of it onto the oldest bucket would read as a spike.
+ *
+ * `associateNames` narrows to the associates currently on screen, exactly as it
+ * does in collectExportRows -- the page's search, team and dismissed filters all
+ * act on whole associates, so their names reproduce the visible selection.
+ *
+ * Accepted and rejected deliberately don't sum to presented: on hold, awaiting
+ * response, and deals whose move out of Video Presentation was never recorded
+ * make up the rest (see resolveOutcome). The acceptance rate is therefore a
+ * share of presented, not of accepted + rejected -- the same basis the
+ * leaderboard's rate uses, so the two agree.
+ */
+export function buildMonthlyPerformance({
+  presentedDeals,
+  dateFrom,
+  dateTo,
+  associateNames,
+}) {
+  const wanted = associateNames ? new Set(associateNames.map(nameKey)) : null;
+
+  const months = monthWindow({ dateFrom, dateTo });
+  const buckets = new Map(
+    months.map((key) => [key, { presented: 0, accepted: 0, rejected: 0 }])
+  );
+
+  presentedDeals.forEach((deal) => {
+    if (!deal.presentedDate) return; // undated rows can't be placed in a month
+    if (!inDateRange(deal.presentedDate, dateFrom, dateTo)) return;
+    if (wanted && !wanted.has(nameKey(deal.associateName))) return;
+
+    const bucket = buckets.get(deal.presentedDate.slice(0, 7));
+    if (!bucket) return;
+
+    bucket.presented += 1;
+    if (deal.outcome === 'accepted') bucket.accepted += 1;
+    else if (deal.outcome === 'rejected') bucket.rejected += 1;
+  });
+
+  return months.map((key) => {
+    const bucket = buckets.get(key);
+    return {
+      month: monthLabel(key),
+      ...bucket,
+      // null, not 0, for a month with nothing presented -- there is no rate to
+      // report, and formatPercent renders that as an em dash rather than "0%".
+      acceptanceRate:
+        bucket.presented > 0 ? (bucket.accepted / bucket.presented) * 100 : null,
+    };
+  });
 }
 
 /**
@@ -242,11 +303,21 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
     [submissions, emailToName, presentedDeals, dateFrom, dateTo]
   );
 
+  // Takes the visible associate names rather than reading a filter, because the
+  // filters live in the page; it is the page's own memo that decides how often
+  // this runs. Cheap either way -- it walks the presented rows only.
+  const getMonthlyPerformance = useCallback(
+    (associateNames) =>
+      buildMonthlyPerformance({ presentedDeals, dateFrom, dateTo, associateNames }),
+    [presentedDeals, dateFrom, dateTo]
+  );
+
   return {
     presentedDealsData,
     teams,
     // Called when an export is requested, not on render -- see collectExportRows.
     getExportRows,
+    getMonthlyPerformance,
     // The range actually applied, so the page can state it rather than leave
     // the reader to infer it from a half-filled pair of inputs.
     appliedRange: { dateFrom, dateTo },

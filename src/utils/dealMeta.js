@@ -10,6 +10,7 @@ import {
   lookupClientDealFlowStart,
   liveAssociateNames,
   liveAssociateTeams,
+  liveClientEntries,
   liveClientNames,
 } from '@/utils/nameRegistry';
 
@@ -391,4 +392,65 @@ export function getClientStatus(contactId) {
 export function getClientDealFlowStart(contactId) {
   if (contactId === null || contactId === undefined) return null;
   return lookupClientDealFlowStart(contactId) ?? null;
+}
+
+// The two per-contact attributes above, reached by client *name* instead of by
+// id. The Presented Deals report has no contact id to key on: its client rows
+// come from hand-typed partner names resolved against the roster (see
+// resolveClientName), so a name is all it carries. Indexed on the same name key
+// that join uses, and rebuilt on a registry change like the indexes above.
+let clientProfileIndex = null;
+let clientProfileIndexRevision = -1;
+
+/** Which of two contacts sharing a name the index should keep: the one that
+ * entered deal flow first -- when the relationship being reported on began --
+ * with undated contacts last and the lower id settling a tie. */
+function startsEarlier(candidate, held) {
+  if (candidate.dealFlowStart !== held.dealFlowStart) {
+    if (!candidate.dealFlowStart) return false;
+    if (!held.dealFlowStart) return true;
+    // Plain 'YYYY-MM-DD' strings, so a lexicographic compare is a date compare.
+    return candidate.dealFlowStart < held.dealFlowStart;
+  }
+  return candidate.contactId < held.contactId;
+}
+
+function currentClientProfiles() {
+  if (!clientProfileIndex || clientProfileIndexRevision !== getNameRevision()) {
+    const byName = new Map();
+
+    for (const [id, name] of liveClientEntries()) {
+      const key = nameKey(name);
+      if (!key) continue;
+
+      const profile = {
+        contactId: Number(id),
+        status: getClientStatus(id),
+        dealFlowStart: getClientDealFlowStart(id),
+      };
+
+      // Two contacts can carry the same name. Both fields are taken from
+      // whichever one wins so a row always describes one real contact rather
+      // than a blend of two.
+      const held = byName.get(key);
+      if (!held || startsEarlier(profile, held)) byName.set(key, profile);
+    }
+
+    clientProfileIndex = byName;
+    clientProfileIndexRevision = getNameRevision();
+  }
+  return clientProfileIndex;
+}
+
+/**
+ * A client's status and deal flow start, looked up by name.
+ *
+ * Null for a name no Bitrix contact carries -- the hand-typed partner names
+ * that never resolved (see resolveClientName). That is deliberately distinct
+ * from a contact the roster knows but records nothing for, which comes back as
+ * status "Unassigned" with a null date: one is an unmatched name, the other a
+ * real client with a gap in its record.
+ */
+export function getClientProfile(clientName) {
+  return currentClientProfiles().get(nameKey(clientName)) ?? null;
 }

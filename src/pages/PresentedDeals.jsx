@@ -1,13 +1,5 @@
 import { Fragment, useState, useMemo } from "react";
-import {
-  Search,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronDown,
-  ChevronRight,
-  Download,
-} from "lucide-react";
+import { Search, ChevronDown, ChevronRight, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { InfoCard } from "@/components/cards/InfoCard";
@@ -18,6 +10,13 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TableSkeleton } from "@/components/common/LoadingSkeleton";
 import { TeamLeaderboard } from "@/components/tables/TeamLeaderboard";
+import { ClientReport } from "@/components/tables/ClientReport";
+import {
+  GroupedTableHead,
+  useSort,
+  withMetricColumns,
+} from "@/components/tables/presentedColumns";
+import { MonthlyTeamPerformanceChart } from "@/components/charts/MonthlyTeamPerformanceChart";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSubmissions } from "@/hooks/useSubmissions";
+import { buildClientReport } from "@/utils/clientRollup";
 import { NO_TEAM } from "@/utils/dealMeta";
 import { describeRange } from "@/utils/dateRange";
 import { downloadCsv, downloadXlsx } from "@/utils/exportFile";
@@ -38,54 +38,10 @@ import {
   presentedDealsFileName,
 } from "@/utils/presentedDealsExport";
 import { formatNumber } from "@/utils/format";
-import { cn } from "@/utils/cn";
 
-// `key` doubles as the field read off each associate row when sorting.
-// Everything after Total breaks the presented figure down by where the deal
-// went after Video Presentation, so they share a `group` and render under one
-// spanning "Presented Deals" header.
-const COLUMNS = [
-  { key: "name", label: "Associate / Client" },
-  { key: "total", label: "Sourced Deals", align: "right" },
-  { key: "presented", label: "Total", align: "right", group: "Presented Deals" },
-  { key: "accepted", label: "Accepted Deals", align: "right", group: "Presented Deals" },
-  { key: "rejected", label: "Rejected Deals", align: "right", group: "Presented Deals" },
-  { key: "onHold", label: "On Hold", align: "right", group: "Presented Deals" },
-  { key: "awaiting", label: "Awaiting Response", align: "right", group: "Presented Deals" },
-];
-
-// Top header row: consecutive columns sharing a `group` collapse into a single
-// spanning cell, and everything else spans both header rows.
-const HEADER_GROUPS = COLUMNS.reduce((groups, col) => {
-  const previous = groups[groups.length - 1];
-  if (col.group && previous?.group === col.group) previous.span += 1;
-  else groups.push({ group: col.group, span: 1, col });
-  return groups;
-}, []);
-
-// Second header row: only the grouped columns, which carry the sort controls.
-const GROUPED_COLUMNS = COLUMNS.filter((col) => col.group);
-
-function SortIcon({ active, direction }) {
-  if (!active) return <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />;
-  return direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
-}
-
-function SortButton({ column, sort, onSort }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(column.key)}
-      className={cn(
-        "inline-flex items-center gap-1 transition-colors hover:text-foreground",
-        column.align === "right" && "flex-row-reverse",
-      )}
-    >
-      {column.label}
-      <SortIcon active={sort.field === column.key} direction={sort.direction} />
-    </button>
-  );
-}
+// The report read by associate: `name` sorts on the associate, and the shared
+// metric columns carry the figures (see presentedColumns.jsx).
+const COLUMNS = withMetricColumns({ key: "name", label: "Associate / Client" });
 
 export default function PresentedDeals() {
   const [dateFrom, setDateFrom] = useState(null);
@@ -95,12 +51,20 @@ export default function PresentedDeals() {
   // Dismissed associates are hidden by default -- the usual question is about
   // the current roster, so seeing departed staff is the opt-in.
   const [excludeDismissed, setExcludeDismissed] = useState(true);
-  const [sort, setSort] = useState({ field: "total", direction: "desc" });
+  const [sort, toggleSort] = useSort("total");
   const [expandedAssociates, setExpandedAssociates] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
 
-  const { presentedDealsData, teams, getExportRows, appliedRange, isLoading, isError, error } =
-    useSubmissions(dateFrom, dateTo);
+  const {
+    presentedDealsData,
+    teams,
+    getExportRows,
+    getMonthlyPerformance,
+    appliedRange,
+    isLoading,
+    isError,
+    error,
+  } = useSubmissions(dateFrom, dateTo);
 
   // The teams the roster still staffs (see listTeams), plus a bucket for the
   // associates it records no team for -- departed staff and anyone whose name
@@ -130,14 +94,6 @@ export default function PresentedDeals() {
     setTeam("All");
     setExcludeDismissed(true);
   };
-
-  function toggleSort(field) {
-    setSort((prev) =>
-      prev.field === field
-        ? { field, direction: prev.direction === "asc" ? "desc" : "asc" }
-        : { field, direction: "desc" },
-    );
-  }
 
   const filteredData = useMemo(() => {
     let result = presentedDealsData;
@@ -173,6 +129,10 @@ export default function PresentedDeals() {
     });
   }, [filteredData, sort]);
 
+  // The same report one level across: the client rows every associate carries,
+  // merged across associates into one row per client, ranked by volume.
+  const clientRows = useMemo(() => buildClientReport(filteredData), [filteredData]);
+
   // Derived from the same rows the table renders, so the totals always agree
   // with what's on screen when a search or date range is applied.
   const stats = useMemo(
@@ -184,11 +144,21 @@ export default function PresentedDeals() {
       totalRejected: filteredData.reduce((sum, a) => sum + a.rejected, 0),
       totalOnHold: filteredData.reduce((sum, a) => sum + a.onHold, 0),
       totalAwaiting: filteredData.reduce((sum, a) => sum + a.awaiting, 0),
-      totalClients: new Set(
-        filteredData.flatMap((a) => a.clients.map((c) => c.clientName)),
-      ).size,
+      // Counted off the rolled-up rows rather than the raw client names, so this
+      // is exactly the number of rows the Clients table lists -- spellings that
+      // differ only by case or spacing are one client there and one here.
+      totalClients: clientRows.length,
     }),
-    [filteredData],
+    [filteredData, clientRows],
+  );
+
+  // Built from the same visible associates the export is, so the monthly bars
+  // describe exactly the rows the table below is showing. Memoized on
+  // `filteredData` rather than derived inline: it walks every presented deal, so
+  // it should only rerun when a filter actually moves.
+  const monthlyPerformance = useMemo(
+    () => getMonthlyPerformance(filteredData.map((a) => a.name)),
+    [getMonthlyPerformance, filteredData],
   );
 
   // The rows behind whatever the table is currently showing. `filteredData`
@@ -364,6 +334,19 @@ export default function PresentedDeals() {
               and the breakdown always tell the same story. */}
           <TeamLeaderboard rows={filteredData} isLoading={isLoading} />
 
+          {/* The leaderboard's accepted and rejected columns spread over time.
+              Under a team filter it is that team's month-by-month record; with
+              no filter it is the whole company's. */}
+          <MonthlyTeamPerformanceChart
+            data={monthlyPerformance}
+            isLoading={isLoading}
+            subtitle={
+              appliedRangeLabel
+                ? `Accepted vs. rejected presented deals, ${appliedRangeLabel}`
+                : undefined
+            }
+          />
+
           <InfoCard
             title="Presented Deals"
             subtitle="Deals grouped by associate and client. Accepted, rejected and on hold count presented deals by where they moved after Video Presentation; awaiting response counts those still sitting in it."
@@ -409,54 +392,12 @@ export default function PresentedDeals() {
               </div>
             ) : (
               <div className="scrollbar-thin overflow-x-auto">
-                <table className="w-50">
-                  <thead>
-                    <tr>
-                      {HEADER_GROUPS.map(({ group, span, col }) =>
-                        group ? (
-                          <th
-                            key={group}
-                            colSpan={span}
-                            className="table-th border-b border-border text-center"
-                          >
-                            {group}
-                          </th>
-                        ) : (
-                          <th
-                            key={col.key}
-                            rowSpan={2}
-                            className={cn(
-                              "table-th",
-                              col.align === "right" && "text-right",
-                            )}
-                          >
-                            <SortButton
-                              column={col}
-                              sort={sort}
-                              onSort={toggleSort}
-                            />
-                          </th>
-                        ),
-                      )}
-                    </tr>
-                    <tr>
-                      {GROUPED_COLUMNS.map((col) => (
-                        <th
-                          key={col.key}
-                          className={cn(
-                            "table-th",
-                            col.align === "right" && "text-right",
-                          )}
-                        >
-                          <SortButton
-                            column={col}
-                            sort={sort}
-                            onSort={toggleSort}
-                          />
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
+                <table className="w-auto">
+                  <GroupedTableHead
+                    columns={COLUMNS}
+                    sort={sort}
+                    onSort={toggleSort}
+                  />
                   <tbody>
                     {sortedData.map((associate) => {
                       const isExpanded = expandedAssociates.has(associate.name);
@@ -539,6 +480,10 @@ export default function PresentedDeals() {
               </div>
             )}
           </InfoCard>
+
+          {/* The same report one level across: every client in the current
+              view, with the associates behind each one a row expansion away. */}
+          <ClientReport rows={clientRows} isLoading={isLoading} />
         </div>
       )}
     </PageContainer>

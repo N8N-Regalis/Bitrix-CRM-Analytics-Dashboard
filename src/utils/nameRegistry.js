@@ -178,3 +178,9 @@ export function liveClientNames() {
 export function liveClientIds() {
   return clientNames.keys();
 }
+
+/** [client id, display name] pairs, for the name-keyed profile index in
+ * dealMeta -- the reports that only ever know a client by name. */
+export function liveClientEntries() {
+  return clientNames.entries();
+}

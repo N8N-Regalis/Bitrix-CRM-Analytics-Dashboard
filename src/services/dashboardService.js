@@ -42,50 +42,119 @@ export function getRecentMonths(count) {
   return months;
 }
 
-export function getDealsPerMonth(deals, monthsBack = 12) {
-  const months = getRecentMonths(monthsBack);
-  const counts = new Map(months.map((m) => [m.key, 0]));
+// --- Trend chart windows -----------------------------------------------------
+//
+// Both the buckets and the rows that land in them are keyed by `deal.createdDay`
+// -- the UTC day the date-range filters also test. These charts used to bucket
+// by local time (`new Date(deal.createdAt).getDate()`), which was self-consistent
+// while the window was always "the last N days from now", but stopped being so
+// once the Dashboard gained a filter: a deal created at 02:00 UTC counts as the
+// previous day locally, so a range-derived window could drop a deal the KPI
+// cards beside it still counted. One basis end to end keeps the two agreeing.
+//
+// `getRecentMonths` above is left on its own local basis because analyticsService
+// builds its own series from it; nothing here reads it any more.
 
-  for (const deal of deals) {
-    const date = new Date(deal.createdAt);
-    if (Number.isNaN(date.getTime())) continue;
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    if (counts.has(key)) counts.set(key, counts.get(key) + 1);
-  }
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-  return months.map((m) => ({ month: m.label, deals: counts.get(m.key) ?? 0 }));
+/** Today as `yyyy-mm-dd`, UTC -- the same basis as `deal.createdDay`. */
+function todayUtc() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function dayKey(date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+function addDays(day, delta) {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
 }
 
-/** Builds the last `count` calendar days (oldest first), including today. */
-export function getRecentDays(count) {
+function addMonths(key, delta) {
+  const [year, month] = key.split('-').map(Number);
+  const total = year * 12 + (month - 1) + delta;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+}
+
+/** `Aug 21`, read off the string so no timezone can shift the day. */
+function dayLabel(day) {
+  const [, month, date] = day.split('-');
+  return `${MONTH_ABBR[Number(month) - 1]} ${Number(date)}`;
+}
+
+/** `Aug 25` from a `yyyy-mm` key -- the format the month axis has always used.
+ * Exported alongside monthWindow below so any monthly series -- including the
+ * Presented Deals page's, built from a different table entirely -- lands on the
+ * same buckets and the same axis labels as the ones here. */
+export function monthLabel(key) {
+  const [year, month] = key.split('-');
+  return `${MONTH_ABBR[Number(month) - 1]} ${year.slice(2)}`;
+}
+
+/**
+ * Inclusive day count between two `yyyy-mm-dd` bounds, so a caller can size a
+ * range before deciding whether a per-day chart is worth rendering. Reversed or
+ * unparseable bounds count as zero rather than going negative.
+ */
+export function countDaysInRange(dateFrom, dateTo) {
+  const from = Date.parse(`${dateFrom}T00:00:00Z`);
+  const to = Date.parse(`${dateTo}T00:00:00Z`);
+  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return 0;
+  return Math.round((to - from) / DAY_MS) + 1;
+}
+
+/**
+ * The buckets a trend chart should show: the applied range when there is one,
+ * otherwise the trailing window ending today. Bounds arrive already resolved
+ * (see resolveDateRange), so they are complete `yyyy-mm-dd` strings and compare
+ * lexicographically -- reversed bounds simply yield no buckets, matching the
+ * empty result the same pair produces everywhere else.
+ */
+function dayWindow({ daysBack = 30, dateFrom = null, dateTo = null }) {
   const days = [];
-  const now = new Date();
-  for (let i = count - 1; i >= 0; i -= 1) {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    days.push({
-      key: dayKey(date),
-      label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    });
+  if (dateFrom && dateTo) {
+    for (let day = dateFrom; day <= dateTo; day = addDays(day, 1)) days.push(day);
+    return days;
   }
+  const end = todayUtc();
+  for (let i = daysBack - 1; i >= 0; i -= 1) days.push(addDays(end, -i));
   return days;
 }
 
-export function getDealsPerDay(deals, daysBack = 30) {
-  const days = getRecentDays(daysBack);
-  const counts = new Map(days.map((d) => [d.key, 0]));
+export function monthWindow({ monthsBack = 12, dateFrom = null, dateTo = null }) {
+  const months = [];
+  if (dateFrom && dateTo) {
+    const end = dateTo.slice(0, 7);
+    for (let key = dateFrom.slice(0, 7); key <= end; key = addMonths(key, 1)) months.push(key);
+    return months;
+  }
+  const end = todayUtc().slice(0, 7);
+  for (let i = monthsBack - 1; i >= 0; i -= 1) months.push(addMonths(end, -i));
+  return months;
+}
+
+export function getDealsPerMonth(deals, window = {}) {
+  const months = monthWindow(window);
+  const counts = new Map(months.map((key) => [key, 0]));
 
   for (const deal of deals) {
-    const date = new Date(deal.createdAt);
-    if (Number.isNaN(date.getTime())) continue;
-    const key = dayKey(date);
-    if (counts.has(key)) counts.set(key, counts.get(key) + 1);
+    const key = deal.createdDay?.slice(0, 7);
+    if (key && counts.has(key)) counts.set(key, counts.get(key) + 1);
   }
 
-  return days.map((d) => ({ day: d.label, deals: counts.get(d.key) ?? 0 }));
+  return months.map((key) => ({ month: monthLabel(key), deals: counts.get(key) }));
+}
+
+export function getDealsPerDay(deals, window = {}) {
+  const days = dayWindow(window);
+  const counts = new Map(days.map((day) => [day, 0]));
+
+  for (const deal of deals) {
+    if (deal.createdDay && counts.has(deal.createdDay)) {
+      counts.set(deal.createdDay, counts.get(deal.createdDay) + 1);
+    }
+  }
+
+  return days.map((day) => ({ day: dayLabel(day), deals: counts.get(day) }));
 }
 
 /** Deals grouped by stage, in funnel order (not by count) so the ordinal

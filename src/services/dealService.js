@@ -1,6 +1,7 @@
 import { supabase } from '@/services/supabase';
 import { ensureLiveNames } from '@/services/namesService';
 import { getStageLabel, getPipelineLabel, getAssociateLabel, getClientLabel, getClientStatus } from '@/utils/dealMeta';
+import { toDayString } from '@/utils/dateRange';
 
 const LIST_COLUMNS =
   'deal_id, title, stage_id, category_id, assigned_by_id, company_id, contact_id, opportunity, currency_id, created_at, updated_at, closed_at, is_closed, is_won';
@@ -28,6 +29,10 @@ function normalizeDeal(row) {
     amount: row.opportunity === null ? 0 : Number(row.opportunity),
     currency: row.currency_id || 'USD',
     createdAt: row.created_at,
+    // The UTC day `createdAt` falls on. Precomputed here, once per fetch,
+    // because the date-range filters run over every row on each keystroke and
+    // would otherwise rebuild two Date objects per row per pass.
+    createdDay: toDayString(row.created_at),
     updatedAt: row.updated_at,
     closedAt: row.closed_at,
     isClosed: row.is_closed,

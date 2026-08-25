@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAllDeals } from '@/services/dealService';
+import { inDateRange, resolveDateRange } from '@/utils/dateRange';
 
 /** Shared base query — cached once and reused by every page that needs deals. */
 export function useDealsQuery() {
@@ -45,6 +46,11 @@ export function useDeals(initialFilters) {
   const [sort, setSort] = useState({ field: 'createdAt', direction: 'desc' });
   const [page, setPage] = useState(1);
 
+  // The window actually queried, which is not always the pair in the inputs:
+  // half-typed dates are held back, and one date entered means that one day.
+  // The page states the result rather than leaving it to be inferred.
+  const { dateFrom, dateTo } = resolveDateRange(filters.dateFrom, filters.dateTo);
+
   const filteredDeals = useMemo(() => {
     let result = deals;
 
@@ -64,18 +70,13 @@ export function useDeals(initialFilters) {
     if (filters.status !== 'All') {
       result = result.filter((d) => d.status === filters.status);
     }
-    if (filters.dateFrom) {
-      const from = new Date(filters.dateFrom);
-      result = result.filter((d) => new Date(d.createdAt) >= from);
-    }
-    if (filters.dateTo) {
-      const to = new Date(filters.dateTo);
-      result = result.filter((d) => new Date(d.createdAt) <= to);
+    if (dateFrom || dateTo) {
+      result = result.filter((d) => inDateRange(d.createdDay, dateFrom, dateTo));
     }
 
     const direction = sort.direction === 'asc' ? 1 : -1;
     return [...result].sort((a, b) => compareValues(a[sort.field], b[sort.field]) * direction);
-  }, [deals, filters, sort]);
+  }, [deals, filters, dateFrom, dateTo, sort]);
 
   const total = filteredDeals.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -113,6 +114,8 @@ export function useDeals(initialFilters) {
     pageSize: PAGE_SIZE,
     totalPages,
     filters,
+    // The range the rows were actually filtered by -- see resolveDateRange above.
+    appliedRange: { dateFrom, dateTo },
     updateFilters,
     resetFilters,
     sort,

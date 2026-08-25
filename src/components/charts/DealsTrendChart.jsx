@@ -7,13 +7,20 @@ const COLUMNS = [
   { key: 'deals', label: 'Deals Created' },
 ];
 
-export function DealsTrendChart({ data = [], isLoading, className }) {
+// `subtitle` names the window the buckets actually span; the default holds for
+// the unfiltered trailing window the Dashboard shows when no range is applied.
+export function DealsTrendChart({
+  data = [],
+  isLoading,
+  className,
+  subtitle = 'New deals entering the pipeline, last 12 months',
+}) {
   const isEmpty = !isLoading && data.every((d) => d.deals === 0);
 
   return (
     <ChartCard
       title="Deals Created Per Month"
-      subtitle="New deals entering the pipeline, last 12 months"
+      subtitle={subtitle}
       isLoading={isLoading}
       isEmpty={isEmpty}
       tableData={data}

@@ -18,7 +18,7 @@ const DAY_WIDTH = 64;
  * fixed pixel width (days * DAY_WIDTH) inside an overflow-x-auto container,
  * and scroll position defaults to the far right (most recent day) on load.
  */
-export function DealsPerDayChart({ data = [], isLoading, className }) {
+export function DealsPerDayChart({ data = [], isLoading, className, subtitle }) {
   const scrollRef = useRef(null);
   const isEmpty = !isLoading && data.every((d) => d.deals === 0);
 
@@ -30,10 +30,18 @@ export function DealsPerDayChart({ data = [], isLoading, className }) {
 
   const chartWidth = Math.max(data.length, VISIBLE_DAYS) * DAY_WIDTH;
 
+  // `subtitle` names the window when the caller filtered to one; otherwise it is
+  // the trailing window. The scroll hint is appended here rather than by the
+  // caller because only this component knows how many days fit in the card -- a
+  // filtered range can be shorter than VISIBLE_DAYS, with nothing to scroll to.
+  const windowLabel = subtitle ?? `Last ${data.length} days`;
+  const cardSubtitle =
+    data.length > VISIBLE_DAYS ? `${windowLabel} — scroll left for earlier days` : windowLabel;
+
   return (
     <ChartCard
       title="Deals Created Per Day"
-      subtitle={`Last ${data.length} days — scroll left for earlier days`}
+      subtitle={cardSubtitle}
       isLoading={isLoading}
       isEmpty={isEmpty}
       tableData={data}

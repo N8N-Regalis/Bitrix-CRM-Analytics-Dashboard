@@ -11,6 +11,7 @@ import { TableSkeleton } from '@/components/common/LoadingSkeleton';
 import { useDealsQuery } from '@/hooks/useDeals';
 import { getAssociatePerformance } from '@/services/dashboardService';
 import { formatPercent, formatNumber } from '@/utils/format';
+import { describeRange, inDateRange, resolveDateRange } from '@/utils/dateRange';
 import { cn } from '@/utils/cn';
 
 const COLUMNS = [
@@ -34,18 +35,17 @@ export default function Associates() {
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
 
+  // Half-typed dates are held back and one date entered means that one day, so
+  // what gets queried is not always the pair in the inputs -- hence the label.
+  const appliedRange = resolveDateRange(dateFrom, dateTo);
+  const appliedFrom = appliedRange.dateFrom;
+  const appliedTo = appliedRange.dateTo;
+  const appliedRangeLabel = describeRange(appliedFrom, appliedTo);
+
   const filteredDeals = useMemo(() => {
-    let result = deals;
-    if (dateFrom) {
-      const from = new Date(dateFrom);
-      result = result.filter((d) => new Date(d.createdAt) >= from);
-    }
-    if (dateTo) {
-      const to = new Date(dateTo);
-      result = result.filter((d) => new Date(d.createdAt) <= to);
-    }
-    return result;
-  }, [deals, dateFrom, dateTo]);
+    if (!appliedFrom && !appliedTo) return deals;
+    return deals.filter((d) => inDateRange(d.createdDay, appliedFrom, appliedTo));
+  }, [deals, appliedFrom, appliedTo]);
 
   const hasActiveFilters = dateFrom !== null || dateTo !== null;
 
@@ -91,6 +91,11 @@ export default function Associates() {
         <div className="space-y-6">
           <FilterBar onReset={resetFilters} hasActiveFilters={hasActiveFilters}>
             <DateRangeFilter from={dateFrom} to={dateTo} onChangeFrom={setDateFrom} onChangeTo={setDateTo} />
+            {appliedRangeLabel && (
+              <span className="text-sm text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{appliedRangeLabel}</span>
+              </span>
+            )}
           </FilterBar>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

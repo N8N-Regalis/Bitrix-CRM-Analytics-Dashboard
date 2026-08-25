@@ -1,17 +1,15 @@
-import { useMemo, useState } from "react";
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  CheckCircle2,
-  Medal,
-  Presentation,
-  Trophy,
-  XCircle,
-} from "lucide-react";
+import { useMemo } from "react";
+import { CheckCircle2, Medal, Presentation, Trophy, XCircle } from "lucide-react";
 import { InfoCard } from "@/components/cards/InfoCard";
 import { StatCard } from "@/components/cards/StatCard";
 import { TableSkeleton } from "@/components/common/LoadingSkeleton";
+import {
+  GroupedTableHead,
+  METRICS,
+  METRIC_CLASS,
+  useSort,
+  withMetricColumns,
+} from "@/components/tables/presentedColumns";
 import { NO_TEAM } from "@/utils/dealMeta";
 import { formatNumber, formatPercent } from "@/utils/format";
 import { cn } from "@/utils/cn";
@@ -19,61 +17,7 @@ import { cn } from "@/utils/cn";
 // The same shape as the Presented Deals table below it, one level up: a team
 // row is the sum of its associates' rows, so every column means exactly what it
 // means there and the two tables reconcile column by column.
-const COLUMNS = [
-  { key: "team", label: "Team" },
-  { key: "total", label: "Sourced Deals", align: "right" },
-  { key: "presented", label: "Total", align: "right", group: "Presented Deals" },
-  { key: "accepted", label: "Accepted Deals", align: "right", group: "Presented Deals" },
-  { key: "rejected", label: "Rejected Deals", align: "right", group: "Presented Deals" },
-  { key: "onHold", label: "On Hold", align: "right", group: "Presented Deals" },
-  { key: "awaiting", label: "Awaiting Response", align: "right", group: "Presented Deals" },
-];
-
-// Consecutive columns sharing a `group` collapse into one spanning header cell;
-// everything else spans both header rows.
-const HEADER_GROUPS = COLUMNS.reduce((groups, col) => {
-  const previous = groups[groups.length - 1];
-  if (col.group && previous?.group === col.group) previous.span += 1;
-  else groups.push({ group: col.group, span: 1, col });
-  return groups;
-}, []);
-
-const GROUPED_COLUMNS = COLUMNS.filter((col) => col.group);
-
-// The numeric columns, in the order they are summed and rendered.
-const METRICS = ["total", "presented", "accepted", "rejected", "onHold", "awaiting"];
-
-// Per-column cell styling, so the team rows and the totals row read the same as
-// the associate table.
-const METRIC_CLASS = {
-  total: "text-primary",
-  presented: "text-foreground",
-  accepted: "text-status-good",
-  rejected: "text-status-critical",
-  onHold: "text-status-serious",
-  awaiting: "text-status-warning",
-};
-
-function SortIcon({ active, direction }) {
-  if (!active) return <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />;
-  return direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
-}
-
-function SortButton({ column, sort, onSort }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(column.key)}
-      className={cn(
-        "inline-flex items-center gap-1 transition-colors hover:text-foreground",
-        column.align === "right" && "flex-row-reverse",
-      )}
-    >
-      {column.label}
-      <SortIcon active={sort.field === column.key} direction={sort.direction} />
-    </button>
-  );
-}
+const COLUMNS = withMetricColumns({ key: "team", label: "Team" });
 
 /** Presented first, because that is what the board ranks on; accepted breaks a
  * tie, and the name settles the rest so the order never wobbles between renders. */
@@ -149,7 +93,7 @@ function buildLeaderboard(rows) {
  * selection moves this board and the table below it together.
  */
 export function TeamLeaderboard({ rows = [], isLoading, className }) {
-  const [sort, setSort] = useState({ field: "presented", direction: "desc" });
+  const [sort, toggleSort] = useSort("presented");
 
   const { teams, totals, teamCount, topTeam, topAssociate, acceptanceRate, rejectionRate } =
     useMemo(() => buildLeaderboard(rows), [rows]);
@@ -162,14 +106,6 @@ export function TeamLeaderboard({ rows = [], isLoading, className }) {
       return (av > bv ? 1 : av < bv ? -1 : 0) * dir || a.team.localeCompare(b.team);
     });
   }, [teams, sort]);
-
-  function toggleSort(field) {
-    setSort((prev) =>
-      prev.field === field
-        ? { field, direction: prev.direction === "asc" ? "desc" : "asc" }
-        : { field, direction: "desc" },
-    );
-  }
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -208,39 +144,7 @@ export function TeamLeaderboard({ rows = [], isLoading, className }) {
         ) : (
           <div className="scrollbar-thin overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr>
-                  {HEADER_GROUPS.map(({ group, span, col }) =>
-                    group ? (
-                      <th
-                        key={group}
-                        colSpan={span}
-                        className="table-th border-b border-border text-center"
-                      >
-                        {group}
-                      </th>
-                    ) : (
-                      <th
-                        key={col.key}
-                        rowSpan={2}
-                        className={cn("table-th", col.align === "right" && "text-right")}
-                      >
-                        <SortButton column={col} sort={sort} onSort={toggleSort} />
-                      </th>
-                    ),
-                  )}
-                </tr>
-                <tr>
-                  {GROUPED_COLUMNS.map((col) => (
-                    <th
-                      key={col.key}
-                      className={cn("table-th", col.align === "right" && "text-right")}
-                    >
-                      <SortButton column={col} sort={sort} onSort={toggleSort} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
+              <GroupedTableHead columns={COLUMNS} sort={sort} onSort={toggleSort} />
               <tbody>
                 {sortedTeams.map((team) => (
                   <tr key={team.team} className="transition-colors hover:bg-muted/40">

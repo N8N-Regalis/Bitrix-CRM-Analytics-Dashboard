@@ -49,6 +49,45 @@ export function isSingleDay(dateFrom, dateTo) {
   return Boolean(dateFrom) && dateFrom === dateTo;
 }
 
+/**
+ * Tests a `yyyy-mm-dd` day against resolved bounds of the same shape, so the
+ * comparison is a lexicographic string compare. Parsing the bounds into Date
+ * objects instead would anchor them to midnight in one zone and quietly shift
+ * which day a row falls on -- and, when the bound is the upper one, would put
+ * every row later than midnight on that day outside the range.
+ *
+ * Pass bounds that have already been through resolveDateRange; raw input state
+ * can still be half-typed.
+ *
+ * NOTE: useSubmissions.js carries an identical private copy that the presented
+ * deals report has always used. This one was added for the deal-created filters
+ * rather than reusing that one, to keep the reworked pages from touching the
+ * report's code path. Collapse the two once these have run in production.
+ */
+export function inDateRange(day, dateFrom, dateTo) {
+  if (!dateFrom && !dateTo) return true;
+  if (!day) return false; // undated rows can't be placed in a range
+  if (dateFrom && day < dateFrom) return false;
+  if (dateTo && day > dateTo) return false;
+  return true;
+}
+
+/**
+ * The UTC calendar day a timestamp falls on, as `yyyy-mm-dd`.
+ *
+ * Timestamp columns (`created_at`) have to be reduced to a day before they can
+ * be compared against the date inputs' bounds. The presented and stage-movement
+ * reports read `date` columns that already arrive in this shape; this is what
+ * puts deals on the same footing. Reducing via toISOString states the UTC basis
+ * outright instead of depending on how PostgREST serializes the offset.
+ */
+export function toDayString(timestamp) {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** Formats one bound for display, reading the parts straight off the string.
