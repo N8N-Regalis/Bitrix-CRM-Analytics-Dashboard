@@ -32,6 +32,7 @@ const UNCLASSIFIED_OUTCOME = 'Not recorded';
 
 const PRESENTED_COLUMNS = [
   { key: 'associate_name', header: 'Associate' },
+  { key: 'team', header: 'Team' },
   { key: 'client_name', header: 'Client' },
   { key: 'presented_date', header: 'Presented Date (UTC)' },
   { key: 'outcome', header: 'Outcome' },
@@ -40,6 +41,7 @@ const PRESENTED_COLUMNS = [
   { key: 'stage_id', header: 'Current Stage Code' },
   { key: 'assigned_by_id', header: 'Assigned By ID' },
   { key: 'contact_id', header: 'Contact ID' },
+  { key: 'team_lead_id', header: 'Deal Team Lead ID' },
   { key: 'presented_date_raw', header: 'Presented Date (as sent by Bitrix)' },
 ];
 
@@ -48,6 +50,7 @@ const PRESENTED_COLUMNS = [
 // Supabase returned it, untouched.
 const SOURCED_LEAD_COLUMNS = [
   { key: 'associate_name', header: 'Associate' },
+  { key: 'team', header: 'Team' },
   { key: 'client_name', header: 'Client (matched)' },
   { key: 'source_date', header: 'Source Date (UTC)' },
 ];
@@ -99,6 +102,7 @@ function sourcedColumns(rows) {
 function toPresentedRow(deal) {
   return {
     associate_name: deal.associateName,
+    team: deal.team,
     client_name: deal.clientName,
     presented_date: deal.presentedDate,
     outcome: OUTCOME_LABELS[deal.outcome] ?? UNCLASSIFIED_OUTCOME,
@@ -107,6 +111,7 @@ function toPresentedRow(deal) {
     stage_id: deal.stageId,
     assigned_by_id: deal.assignedById,
     contact_id: deal.contactId,
+    team_lead_id: deal.teamLeadId,
     presented_date_raw: deal.presentedDateRaw,
   };
 }

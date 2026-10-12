@@ -262,6 +262,11 @@ let teamIndexRevision = -1;
 // filter and read in a label.
 export const NO_TEAM = 'No Team';
 
+// Teams the roster staffs but that never own a presented deal, so picking one
+// only ever shows an empty table. Left out of the filter's options only -- the
+// teams themselves are untouched, so their rows still resolve and roll up.
+const HIDDEN_FILTER_TEAMS = new Set(['El-jay', 'Franz']);
+
 function buildTeamIndex() {
   const teamById = new Map();
   const teamOfLead = new Map();
@@ -306,7 +311,10 @@ function buildTeamIndex() {
   // filter's option list is narrowed.
   return {
     byName,
-    teams: [...staffedTeams].sort((a, b) => a.localeCompare(b)),
+    byLeadId: teamOfLead,
+    teams: [...staffedTeams]
+      .filter((team) => !HIDDEN_FILTER_TEAMS.has(team))
+      .sort((a, b) => a.localeCompare(b)),
   };
 }
 
@@ -322,6 +330,26 @@ function currentTeamIndex() {
  * when the roster has none for them. */
 export function getAssociateTeam(associateName) {
   return currentTeamIndex().byName.get(nameKey(associateName)) || NO_TEAM;
+}
+
+// The team lead a deal is filed under, set on the deal itself. Same lowercased
+// column convention as PRESENTED_DATE_FIELD. It holds the lead's Bitrix id, not
+// a team name, and Bitrix writes an empty string rather than null when unset.
+export const DEAL_TEAM_LEAD_FIELD = 'uf_crm_1791215613';
+
+/**
+ * The team a single deal counts toward. The deal's own team lead id wins, so a
+ * deal can sit in a different team from the associate who owns it; when it has
+ * none -- or names a lead the roster has no team for -- the owner's roster team
+ * (getAssociateTeam) stands in. The id is translated to a team name through the
+ * same lead -> team link the roster index already builds for the leads' own deals.
+ */
+export function getDealTeam(teamLeadId, associateName) {
+  if (teamLeadId !== null && teamLeadId !== undefined && String(teamLeadId).trim() !== '') {
+    const team = currentTeamIndex().byLeadId.get(String(teamLeadId).trim());
+    if (team) return team;
+  }
+  return getAssociateTeam(associateName);
 }
 
 /** Every team with someone still employed on it, alphabetically -- the filter's

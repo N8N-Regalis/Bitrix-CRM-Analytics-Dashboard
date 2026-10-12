@@ -144,11 +144,18 @@ export function ClientReport({ rows = [], isLoading, className }) {
                     {isExpanded &&
                       client.associates.map((associate) => (
                         <tr
-                          key={`associate-${client.clientName}-${associate.name}`}
+                          key={`associate-${client.clientName}-${associate.name}-${associate.team}`}
                           className="transition-colors hover:bg-muted/30"
                         >
                           <td className="table-td pl-10 text-sm text-muted-foreground">
-                            <span className="truncate">• {associate.name}</span>
+                            <span className="truncate">
+                              • {associate.name}
+                              {/* An associate with deals in two teams has a line
+                                  under each, so the team says which is which. */}
+                              {client.associates.some(
+                                (other) => other !== associate && other.name === associate.name,
+                              ) && ` (${associate.team})`}
+                            </span>
                           </td>
                           {/* Status and Deal Flow Start describe the client, not
                               the associates under it -- left blank rather than

@@ -64,10 +64,21 @@ function inDateRange(date, dateFrom, dateTo) {
  */
 function submissionIdentity(submission, emailToName) {
   const email = (submission.sourcer_email || '').toLowerCase().trim();
+  const associateName = emailToName[email] || email || 'Unknown';
   return {
-    associateName: emailToName[email] || email || 'Unknown',
+    associateName,
     clientName: resolveClientName(submission.partner_name) || 'Unknown Partner',
+    // A submission has no deal, so no team lead of its own: it counts toward the
+    // team its associate sits on in the roster. Presented deals carry their own.
+    team: getAssociateTeam(associateName),
   };
+}
+
+/** A table row is an associate within a team -- an associate whose deals sit in
+ * more than one team has one row per team. This is the key the page's filtered
+ * rows are handed back to the export and the monthly chart by. */
+function rowKey(associateName, team) {
+  return `${nameKey(associateName)}|${team}`;
 }
 
 /**
@@ -75,9 +86,10 @@ function submissionIdentity(submission, emailToName) {
  * submission rows for the Sourced Deals column, presented deal rows for the
  * Presented Deals columns.
  *
- * `associateNames` narrows the result to the associates currently on screen,
- * which is how the page's search box is applied -- it filters whole associates,
- * so passing their names reproduces it exactly. Omit it for every associate.
+ * `visibleRows` narrows the result to the table rows currently on screen
+ * (associate + team), which is how the page's search, team and dismissed filters
+ * are applied -- they all act on whole rows, so passing them reproduces the
+ * selection exactly. Omit it for every row.
  *
  * Submission rows are copied with their resolved names attached, so this is
  * built on demand rather than memoized: doing it on every render would clone
@@ -90,23 +102,30 @@ export function collectExportRows({
   presentedDeals,
   dateFrom,
   dateTo,
-  associateNames,
+  visibleRows,
 }) {
-  const wanted = associateNames ? new Set(associateNames.map(nameKey)) : null;
-  const isVisible = (associateName) => !wanted || wanted.has(nameKey(associateName));
+  const wanted = visibleRows ? new Set(visibleRows.map((row) => rowKey(row.name, row.team))) : null;
+  const isVisible = (associateName, team) => !wanted || wanted.has(rowKey(associateName, team));
 
   const sourced = [];
   submissions.forEach((submission) => {
     if (!inDateRange(submission.source_date, dateFrom, dateTo)) return;
 
-    const { associateName, clientName } = submissionIdentity(submission, emailToName);
-    if (!isVisible(associateName)) return;
+    const { associateName, clientName, team } = submissionIdentity(submission, emailToName);
+    if (!isVisible(associateName, team)) return;
 
-    sourced.push({ ...submission, associate_name: associateName, client_name: clientName });
+    sourced.push({
+      ...submission,
+      associate_name: associateName,
+      client_name: clientName,
+      team,
+    });
   });
 
   const presented = presentedDeals.filter(
-    (deal) => inDateRange(deal.presentedDate, dateFrom, dateTo) && isVisible(deal.associateName)
+    (deal) =>
+      inDateRange(deal.presentedDate, dateFrom, dateTo) &&
+      isVisible(deal.associateName, deal.team)
   );
 
   return { sourced, presented };
@@ -123,9 +142,9 @@ export function collectExportRows({
  * folded into the end months: without a range the table behind this reaches
  * back years, and piling all of it onto the oldest bucket would read as a spike.
  *
- * `associateNames` narrows to the associates currently on screen, exactly as it
+ * `visibleRows` narrows to the table rows currently on screen, exactly as it
  * does in collectExportRows -- the page's search, team and dismissed filters all
- * act on whole associates, so their names reproduce the visible selection.
+ * act on whole rows, so passing them reproduces the visible selection.
  *
  * Accepted and rejected deliberately don't sum to presented: on hold, awaiting
  * response, and deals whose move out of Video Presentation was never recorded
@@ -137,9 +156,9 @@ export function buildMonthlyPerformance({
   presentedDeals,
   dateFrom,
   dateTo,
-  associateNames,
+  visibleRows,
 }) {
-  const wanted = associateNames ? new Set(associateNames.map(nameKey)) : null;
+  const wanted = visibleRows ? new Set(visibleRows.map((row) => rowKey(row.name, row.team))) : null;
 
   const months = monthWindow({ dateFrom, dateTo });
   const buckets = new Map(
@@ -149,7 +168,7 @@ export function buildMonthlyPerformance({
   presentedDeals.forEach((deal) => {
     if (!deal.presentedDate) return; // undated rows can't be placed in a month
     if (!inDateRange(deal.presentedDate, dateFrom, dateTo)) return;
-    if (wanted && !wanted.has(nameKey(deal.associateName))) return;
+    if (wanted && !wanted.has(rowKey(deal.associateName, deal.team))) return;
 
     const bucket = buckets.get(deal.presentedDate.slice(0, 7));
     if (!bucket) return;
@@ -211,13 +230,15 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
   // depend on: recomputing them side by side is what keeps the options in step
   // with the rows once the roster has loaded.
   const { presentedDealsData, teams } = useMemo(() => {
-    // associate key -> { name, clients: Map<client key, row> }
+    // associate + team key -> { name, team, clients: Map<client key, row> }.
+    // The team is part of the key because it belongs to the deal: an associate
+    // with deals filed under two team leads gets a row under each.
     const byAssociate = new Map();
 
-    function getClientRow(associateName, clientName) {
-      const associateKey = nameKey(associateName);
+    function getClientRow(associateName, team, clientName) {
+      const associateKey = rowKey(associateName, team);
       if (!byAssociate.has(associateKey)) {
-        byAssociate.set(associateKey, { name: associateName, clients: new Map() });
+        byAssociate.set(associateKey, { name: associateName, team, clients: new Map() });
       }
 
       const { clients } = byAssociate.get(associateKey);
@@ -240,14 +261,14 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
     submissions.forEach((submission) => {
       if (!inDateRange(submission.source_date, dateFrom, dateTo)) return;
 
-      const { associateName, clientName } = submissionIdentity(submission, emailToName);
-      getClientRow(associateName, clientName).count += 1;
+      const { associateName, clientName, team } = submissionIdentity(submission, emailToName);
+      getClientRow(associateName, team, clientName).count += 1;
     });
 
     presentedDeals.forEach((deal) => {
       if (!inDateRange(deal.presentedDate, dateFrom, dateTo)) return;
 
-      const row = getClientRow(deal.associateName, deal.clientName);
+      const row = getClientRow(deal.associateName, deal.team, deal.clientName);
       row.presented += 1;
       // These break down the presented count, so they are filtered by the same
       // Presented Date and are mutually exclusive. They still don't sum to it:
@@ -260,7 +281,7 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
     });
 
     const rows = Array.from(byAssociate.values())
-      .map(({ name, clients }) => {
+      .map(({ name, team, clients }) => {
         const clientRows = Array.from(clients.values()).sort(
           (a, b) => b.count - a.count || b.presented - a.presented
         );
@@ -270,10 +291,10 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
 
         return {
           name,
-          // Resolved here rather than in the page so the team travels with the
-          // row it describes -- the filter, the stats and the export all read
-          // the same value.
-          team: getAssociateTeam(name),
+          // Carried on the row so the filter, the stats and the export all read
+          // the same value. Per deal for presented deals (getDealTeam), the
+          // associate's roster team for sourced ones.
+          team,
           // Same reasoning: the roster's is_active flag, reached by name.
           isDismissed: isDismissedAssociate(name),
           clients: clientRows,
@@ -285,30 +306,30 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
           awaiting: sumOf('awaiting'),
         };
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name) || a.team.localeCompare(b.team));
 
     return { presentedDealsData: rows, teams: listTeams() };
   }, [submissions, emailToName, presentedDeals, dateFrom, dateTo]);
 
   const getExportRows = useCallback(
-    (associateNames) =>
+    (visibleRows) =>
       collectExportRows({
         submissions,
         emailToName,
         presentedDeals,
         dateFrom,
         dateTo,
-        associateNames,
+        visibleRows,
       }),
     [submissions, emailToName, presentedDeals, dateFrom, dateTo]
   );
 
-  // Takes the visible associate names rather than reading a filter, because the
-  // filters live in the page; it is the page's own memo that decides how often
-  // this runs. Cheap either way -- it walks the presented rows only.
+  // Takes the visible rows rather than reading a filter, because the filters
+  // live in the page; it is the page's own memo that decides how often this
+  // runs. Cheap either way -- it walks the presented rows only.
   const getMonthlyPerformance = useCallback(
-    (associateNames) =>
-      buildMonthlyPerformance({ presentedDeals, dateFrom, dateTo, associateNames }),
+    (visibleRows) =>
+      buildMonthlyPerformance({ presentedDeals, dateFrom, dateTo, visibleRows }),
     [presentedDeals, dateFrom, dateTo]
   );
 

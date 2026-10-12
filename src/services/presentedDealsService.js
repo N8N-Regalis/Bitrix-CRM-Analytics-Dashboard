@@ -6,11 +6,13 @@ import {
 } from '@/services/stageHistoryService';
 import {
   PRESENTED_DATE_FIELD,
+  DEAL_TEAM_LEAD_FIELD,
   PRESENTATION_STAGE,
   PRESENTATION_OUTCOME_STAGES,
   PRESENTATION_REWORK_STAGES,
   getAssociateLabel,
   getClientLabel,
+  getDealTeam,
 } from '@/utils/dealMeta';
 
 const PAGE_SIZE = 1000;
@@ -58,7 +60,7 @@ async function fetchPaged(table, columns, applyFilters) {
 async function fetchDealsWithPresentedDate() {
   return fetchPaged(
     'deals',
-    `deal_id, assigned_by_id, contact_id, stage_id, ${PRESENTED_DATE_FIELD}`,
+    `deal_id, assigned_by_id, contact_id, stage_id, ${PRESENTED_DATE_FIELD}, ${DEAL_TEAM_LEAD_FIELD}`,
     (query) => query.not(PRESENTED_DATE_FIELD, 'is', null).neq(PRESENTED_DATE_FIELD, '')
   );
 }
@@ -265,15 +267,22 @@ export async function fetchPresentedDeals() {
   // The ids and the untouched Presented Date are carried alongside the resolved
   // labels purely so the page's export can show what each figure was counted
   // from; nothing in the counting reads them.
-  return datedDeals.map((deal) => ({
-    dealId: deal.deal_id,
-    presentedDate: toPresentedDate(deal[PRESENTED_DATE_FIELD]),
-    presentedDateRaw: deal[PRESENTED_DATE_FIELD],
-    assignedById: deal.assigned_by_id,
-    contactId: deal.contact_id,
-    stageId: deal.stage_id,
-    associateName: getAssociateLabel(deal.assigned_by_id),
-    clientName: getClientLabel(deal.contact_id),
-    outcome: resolveOutcome(deal, outcomes, reworkFallbacks),
-  }));
+  return datedDeals.map((deal) => {
+    const associateName = getAssociateLabel(deal.assigned_by_id);
+    return {
+      dealId: deal.deal_id,
+      presentedDate: toPresentedDate(deal[PRESENTED_DATE_FIELD]),
+      presentedDateRaw: deal[PRESENTED_DATE_FIELD],
+      assignedById: deal.assigned_by_id,
+      contactId: deal.contact_id,
+      stageId: deal.stage_id,
+      associateName,
+      clientName: getClientLabel(deal.contact_id),
+      // The deal's own team lead wins over the owner's roster team, so the team
+      // belongs to the deal rather than to the associate (see getDealTeam).
+      teamLeadId: deal[DEAL_TEAM_LEAD_FIELD],
+      team: getDealTeam(deal[DEAL_TEAM_LEAD_FIELD], associateName),
+      outcome: resolveOutcome(deal, outcomes, reworkFallbacks),
+    };
+  });
 }

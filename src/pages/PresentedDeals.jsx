@@ -95,10 +95,25 @@ export default function PresentedDeals() {
     setExcludeDismissed(true);
   };
 
+  // Associates whose deals sit in more than one team have a row per team (see
+  // useSubmissions). Those rows are labelled with their team so the repeated
+  // name reads as a split rather than a duplicate. Taken from the unfiltered
+  // rows, so the label doesn't vanish when a team filter leaves one of them.
+  const splitAssociates = useMemo(() => {
+    const seen = new Set();
+    const split = new Set();
+    presentedDealsData.forEach(({ name }) => {
+      if (seen.has(name)) split.add(name);
+      seen.add(name);
+    });
+    return split;
+  }, [presentedDealsData]);
+
   const filteredData = useMemo(() => {
     let result = presentedDealsData;
-    // Whole associates in or out, like the search below -- their client rows
-    // belong to them, so the breakdown follows without being filtered itself.
+    // Whole rows in or out, like the search below -- their client rows belong to
+    // them, so the breakdown follows without being filtered itself. A row is an
+    // associate within one team, so this keeps only the deals filed under it.
     if (team !== "All") {
       result = result.filter((associate) => associate.team === team);
     }
@@ -137,7 +152,8 @@ export default function PresentedDeals() {
   // with what's on screen when a search or date range is applied.
   const stats = useMemo(
     () => ({
-      totalAssociates: filteredData.length,
+      // Distinct people, not rows: an associate split across teams has several.
+      totalAssociates: new Set(filteredData.map((a) => a.name)).size,
       totalDeals: filteredData.reduce((sum, a) => sum + a.total, 0),
       totalPresented: filteredData.reduce((sum, a) => sum + a.presented, 0),
       totalAccepted: filteredData.reduce((sum, a) => sum + a.accepted, 0),
@@ -157,15 +173,16 @@ export default function PresentedDeals() {
   // `filteredData` rather than derived inline: it walks every presented deal, so
   // it should only rerun when a filter actually moves.
   const monthlyPerformance = useMemo(
-    () => getMonthlyPerformance(filteredData.map((a) => a.name)),
+    () => getMonthlyPerformance(filteredData),
     [getMonthlyPerformance, filteredData],
   );
 
   // The rows behind whatever the table is currently showing. `filteredData`
-  // carries the search, the hook carries the date range, so passing the visible
-  // associate names is enough to reproduce the on-screen selection exactly.
-  // Gathered on click rather than on render -- it copies every submission row.
-  const collectRows = () => getExportRows(filteredData.map((a) => a.name));
+  // carries the search and team filters, the hook carries the date range, so
+  // passing the visible rows is enough to reproduce the on-screen selection
+  // exactly. Gathered on click rather than on render -- it copies every
+  // submission row.
+  const collectRows = () => getExportRows(filteredData);
 
   const baseFileName = presentedDealsFileName(
     appliedRange.dateFrom,
@@ -217,12 +234,15 @@ export default function PresentedDeals() {
       return exported(presented.length, "presented deal");
     });
 
-  const toggleAssociate = (associateName) => {
+  // Keyed on associate and team, since one associate can have a row per team.
+  const rowId = (associate) => `${associate.name}|${associate.team}`;
+
+  const toggleAssociate = (id) => {
     const newExpanded = new Set(expandedAssociates);
-    if (newExpanded.has(associateName)) {
-      newExpanded.delete(associateName);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
     } else {
-      newExpanded.add(associateName);
+      newExpanded.add(id);
     }
     setExpandedAssociates(newExpanded);
   };
@@ -400,12 +420,13 @@ export default function PresentedDeals() {
                   />
                   <tbody>
                     {sortedData.map((associate) => {
-                      const isExpanded = expandedAssociates.has(associate.name);
+                      const id = rowId(associate);
+                      const isExpanded = expandedAssociates.has(id);
                       return (
-                        <Fragment key={associate.name}>
+                        <Fragment key={id}>
                           {/* Associate Row */}
                           <tr
-                            onClick={() => toggleAssociate(associate.name)}
+                            onClick={() => toggleAssociate(id)}
                             className="transition-colors hover:bg-muted/40 cursor-pointer"
                           >
                             <td className="table-td font-medium text-foreground">
@@ -416,6 +437,11 @@ export default function PresentedDeals() {
                                   <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                                 )}
                                 <span className="truncate">{associate.name}</span>
+                                {splitAssociates.has(associate.name) && (
+                                  <span className="flex-shrink-0 text-xs font-normal text-muted-foreground">
+                                    ({associate.team})
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="table-td text-right font-semibold text-primary tabular-nums">
@@ -442,7 +468,7 @@ export default function PresentedDeals() {
                           {isExpanded &&
                             associate.clients.map((client) => (
                               <tr
-                                key={`client-${associate.name}-${client.clientName}`}
+                                key={`client-${id}-${client.clientName}`}
                                 className="transition-colors hover:bg-muted/30"
                               >
                                 <td className="table-td pl-10 text-sm text-muted-foreground">
