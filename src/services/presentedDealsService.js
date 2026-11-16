@@ -77,7 +77,9 @@ function toPresentedDate(value) {
 
 /**
  * How each deal's presentation was received -- 'accepted', 'rejected' or
- * 'onHold' per PRESENTATION_OUTCOME_STAGES -- keyed by deal id. Deals absent
+ * 'onHold' per PRESENTATION_OUTCOME_STAGES -- keyed by deal id. (A rejection is
+ * later split into 'autoAxed' by resolveOutcome; the stage history can't tell
+ * the two apart.) Deals absent
  * from the map went nowhere conclusive and are counted under Presented only.
  *
  * Unlike the presented figure above, this does read `stage_transitions` -- the
@@ -216,6 +218,25 @@ async function fetchReworkFallbackOutcomes(dealIds) {
 }
 
 /**
+ * Ids of the deals Bitrix marks "Reason for Axed" = "Auto-axed - Partner did not
+ * respond for 1 week". The `deals` table doesn't carry that field, so a refresh
+ * script copies the ids into `auto_axed_deals` (see sql/auto-axed-deals.sql).
+ *
+ * A failed read degrades to an empty set rather than failing the page: the
+ * presented figures don't depend on it, and the worst outcome is auto-axed deals
+ * showing under plain Rejected until the table is there or the next load works.
+ */
+async function fetchAutoAxedDealIds() {
+  try {
+    const rows = await fetchPaged('auto_axed_deals', 'deal_id', (query) => query.order('deal_id'));
+    return new Set(rows.map((row) => row.deal_id));
+  } catch (error) {
+    console.warn('Auto-axed deal list failed to load; they will count as plain Rejected.', error);
+    return new Set();
+  }
+}
+
+/**
  * Which column a presented deal belongs in: an outcome from the pipeline
  * history, 'awaiting' (still sitting in Video Presentation, no decision yet),
  * or null for a deal none of those describe.
@@ -231,10 +252,22 @@ async function fetchReworkFallbackOutcomes(dealIds) {
  * sitting in Video Presentation right now is awaiting a response whatever an
  * older rework exit once led to.
  *
+ * A rejection splits in two: one Bitrix marks auto-axed (the partner never
+ * answered) becomes 'autoAxed' instead of 'rejected'. It is a separate bucket,
+ * not a subset, so the two never overlap and Rejected excludes them. Only a
+ * rejection is eligible -- the reason is read off a deal that was axed, so a
+ * deal that merely carries it but whose latest exit from Video Presentation went
+ * somewhere else stays where that exit put it.
+ *
  * `null` is what's left after all of that -- deals whose only history is a
  * single still-open row, so there is nothing at all to read a verdict from.
  */
-function resolveOutcome(deal, outcomes, reworkFallbacks) {
+function resolveOutcome(deal, outcomes, reworkFallbacks, autoAxedIds) {
+  const outcome = resolveBaseOutcome(deal, outcomes, reworkFallbacks);
+  return outcome === 'rejected' && autoAxedIds.has(deal.deal_id) ? 'autoAxed' : outcome;
+}
+
+function resolveBaseOutcome(deal, outcomes, reworkFallbacks) {
   const recorded = outcomes.get(deal.deal_id);
   if (recorded) return recorded;
   if (deal.stage_id === PRESENTATION_STAGE) return 'awaiting';
@@ -248,9 +281,10 @@ function resolveOutcome(deal, outcomes, reworkFallbacks) {
 export async function fetchPresentedDeals() {
   // Associate/client labels below come from the name registry; see
   // namesService for why this has to resolve before rows are mapped.
-  const [datedDeals, outcomes] = await Promise.all([
+  const [datedDeals, outcomes, autoAxedIds] = await Promise.all([
     fetchDealsWithPresentedDate(),
     fetchPresentationOutcomes(),
+    fetchAutoAxedDealIds(),
     ensureLiveNames(),
   ]);
 
@@ -282,7 +316,7 @@ export async function fetchPresentedDeals() {
       // belongs to the deal rather than to the associate (see getDealTeam).
       teamLeadId: deal[DEAL_TEAM_LEAD_FIELD],
       team: getDealTeam(deal[DEAL_TEAM_LEAD_FIELD], associateName),
-      outcome: resolveOutcome(deal, outcomes, reworkFallbacks),
+      outcome: resolveOutcome(deal, outcomes, reworkFallbacks, autoAxedIds),
     };
   });
 }

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "refresh:clients": "node --env-file-if-exists=.env scripts/refresh-client-data.mjs",
-    "refresh:associates": "node --env-file-if-exists=.env scripts/refresh-associate-names.mjs"
+    "refresh:associates": "node --env-file-if-exists=.env scripts/refresh-associate-names.mjs",
+    "refresh:auto-axed": "node --env-file-if-exists=.env scripts/refresh-auto-axed-deals.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

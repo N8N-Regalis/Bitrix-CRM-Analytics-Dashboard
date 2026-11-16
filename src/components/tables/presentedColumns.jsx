@@ -12,7 +12,7 @@ import { cn } from "@/utils/cn";
  * reconcile column by column.
  *
  * `key` doubles as the field read off a row when sorting, so every row shape
- * feeding these tables carries these six fields. Everything after Sourced Deals
+ * feeding these tables carries these seven fields. Everything after Sourced Deals
  * breaks the presented figure down by where the deal went after Video
  * Presentation, so they share a `group` and render under one spanning
  * "Presented Deals" header.
@@ -22,6 +22,7 @@ export const METRIC_COLUMNS = [
   { key: "presented", label: "Total", align: "right", group: "Presented Deals" },
   { key: "accepted", label: "Accepted Deals", align: "right", group: "Presented Deals" },
   { key: "rejected", label: "Rejected Deals", align: "right", group: "Presented Deals" },
+  { key: "autoAxed", label: "Auto-Axed Deals", align: "right", group: "Presented Deals" },
   { key: "onHold", label: "On Hold", align: "right", group: "Presented Deals" },
   { key: "awaiting", label: "Awaiting Response", align: "right", group: "Presented Deals" },
 ];
@@ -35,6 +36,9 @@ export const METRIC_CLASS = {
   presented: "text-foreground",
   accepted: "text-status-good",
   rejected: "text-status-critical",
+  // Muted rather than another status colour: it is a kind of rejection, and the
+  // fixed status palette has no shade left that reads as "critical, but quieter".
+  autoAxed: "text-muted-foreground",
   onHold: "text-status-serious",
   awaiting: "text-status-warning",
 };

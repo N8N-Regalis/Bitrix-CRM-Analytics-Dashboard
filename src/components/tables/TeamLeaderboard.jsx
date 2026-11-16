@@ -10,7 +10,7 @@ import {
   useSort,
   withMetricColumns,
 } from "@/components/tables/presentedColumns";
-import { NO_TEAM } from "@/utils/dealMeta";
+import { HIDDEN_FILTER_TEAMS, NO_TEAM } from "@/utils/dealMeta";
 import { formatNumber, formatPercent } from "@/utils/format";
 import { cn } from "@/utils/cn";
 
@@ -50,7 +50,9 @@ function buildLeaderboard(rows) {
     });
   });
 
-  const teams = Array.from(byTeam.values());
+  // Teams that aren't part of the leaderboard (see HIDDEN_FILTER_TEAMS) are
+  // dropped here, so they neither get a row nor count toward the totals.
+  const teams = Array.from(byTeam.values()).filter((team) => !HIDDEN_FILTER_TEAMS.has(team.team));
 
   const totals = METRICS.reduce(
     (sum, metric) => ({ ...sum, [metric]: teams.reduce((n, team) => n + team[metric], 0) }),
@@ -76,7 +78,7 @@ function buildLeaderboard(rows) {
     teamCount: rankedTeams.length,
     topTeam: rankedTeams[0] ?? null,
     topAssociate: rankedAssociates[0] ?? null,
-    // Shares of presented, not of each other: the four outcome buckets don't
+    // Shares of presented, not of each other: the five outcome buckets don't
     // sum to presented (a deal whose move out of Video Presentation was never
     // recorded as a transition lands in none of them), so these two rates
     // deliberately don't add up to 100%.
@@ -219,7 +221,7 @@ export function TeamLeaderboard({ rows = [], isLoading, className }) {
           sub={`${formatNumber(totals.rejected)} rejected`}
           icon={XCircle}
           color="critical"
-          description="Rejected as a share of presented deals. This and the acceptance rate don't add up to 100% — deals on hold, awaiting response, or with no recorded move make up the rest."
+          description="Rejected as a share of presented deals, not counting auto-axed ones (the partner never responded), which have their own column. This and the acceptance rate don't add up to 100% — auto-axed deals, deals on hold, awaiting response, or with no recorded move make up the rest."
           isLoading={isLoading}
         />
       </div>

@@ -158,6 +158,7 @@ export default function PresentedDeals() {
       totalPresented: filteredData.reduce((sum, a) => sum + a.presented, 0),
       totalAccepted: filteredData.reduce((sum, a) => sum + a.accepted, 0),
       totalRejected: filteredData.reduce((sum, a) => sum + a.rejected, 0),
+      totalAutoAxed: filteredData.reduce((sum, a) => sum + a.autoAxed, 0),
       totalOnHold: filteredData.reduce((sum, a) => sum + a.onHold, 0),
       totalAwaiting: filteredData.reduce((sum, a) => sum + a.awaiting, 0),
       // Counted off the rolled-up rows rather than the raw client names, so this
@@ -330,6 +331,12 @@ export default function PresentedDeals() {
                 </span>
               </div>
               <div>
+                <span className="text-muted-foreground">Auto-Axed Deals:</span>
+                <span className="font-semibold text-muted-foreground">
+                  {formatNumber(stats.totalAutoAxed)}
+                </span>
+              </div>
+              <div>
                 <span className="text-muted-foreground">On Hold: </span>
                 <span className="font-semibold text-status-serious">
                   {formatNumber(stats.totalOnHold)}
@@ -369,7 +376,7 @@ export default function PresentedDeals() {
 
           <InfoCard
             title="Presented Deals"
-            subtitle="Deals grouped by associate and client. Accepted, rejected and on hold count presented deals by where they moved after Video Presentation; awaiting response counts those still sitting in it."
+            subtitle="Deals grouped by associate and client. Accepted, rejected and on hold count presented deals by where they moved after Video Presentation; rejected (auto-axed) are the axed ones whose reason is the partner not responding for a week, and are not also counted as rejected; awaiting response counts those still sitting in it."
             contentClassName="p-0"
             actions={
               <DropdownMenu>
@@ -456,6 +463,9 @@ export default function PresentedDeals() {
                             <td className="table-td text-right font-semibold text-status-critical tabular-nums">
                               {formatNumber(associate.rejected)}
                             </td>
+                            <td className="table-td text-right font-semibold text-muted-foreground tabular-nums">
+                              {formatNumber(associate.autoAxed)}
+                            </td>
                             <td className="table-td text-right font-semibold text-status-serious tabular-nums">
                               {formatNumber(associate.onHold)}
                             </td>
@@ -489,6 +499,9 @@ export default function PresentedDeals() {
                                 </td>
                                 <td className="table-td text-right text-sm font-medium text-status-critical tabular-nums">
                                   {formatNumber(client.rejected)}
+                                </td>
+                                <td className="table-td text-right text-sm font-medium text-muted-foreground tabular-nums">
+                                  {formatNumber(client.autoAxed)}
                                 </td>
                                 <td className="table-td text-right text-sm font-medium text-status-serious tabular-nums">
                                   {formatNumber(client.onHold)}

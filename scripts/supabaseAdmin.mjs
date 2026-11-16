@@ -34,10 +34,10 @@ const CHUNK_SIZE = 500;
  * PostgREST requires every row in a batch to carry the same keys, so callers
  * must pass null rather than omitting a field on some rows.
  */
-export async function upsertAll(supabase, table, rows) {
+export async function upsertAll(supabase, table, rows, onConflict = 'bitrix_id') {
   for (let index = 0; index < rows.length; index += CHUNK_SIZE) {
     const chunk = rows.slice(index, index + CHUNK_SIZE);
-    const { error } = await supabase.from(table).upsert(chunk, { onConflict: 'bitrix_id' });
+    const { error } = await supabase.from(table).upsert(chunk, { onConflict });
     if (error) {
       throw new Error(`${table} upsert failed: ${error.message}`);
     }

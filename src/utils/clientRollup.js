@@ -57,6 +57,7 @@ export function buildClientReport(rows = []) {
         presented: client.presented,
         accepted: client.accepted,
         rejected: client.rejected,
+        autoAxed: client.autoAxed,
         onHold: client.onHold,
         awaiting: client.awaiting,
       };

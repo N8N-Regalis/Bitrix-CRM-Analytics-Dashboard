@@ -11,8 +11,13 @@ const COLUMNS = [
   { key: 'presented', label: 'Presented' },
   { key: 'accepted', label: 'Accepted' },
   { key: 'rejected', label: 'Rejected' },
+  { key: 'autoAxed', label: 'Auto-Axed Deals' },
   { key: 'acceptanceRate', label: 'Acceptance Rate', format: (value) => formatPercent(value, 0) },
 ];
+
+// A kind of rejection, so not a status colour of its own -- the tables ink the
+// column muted for the same reason.
+const AUTO_AXED_COLOR = 'hsl(var(--muted-foreground))';
 
 function renderLegend() {
   return (
@@ -23,15 +28,19 @@ function renderLegend() {
       <span className="flex items-center gap-1.5">
         <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--status-critical)' }} /> Rejected
       </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: AUTO_AXED_COLOR }} /> Auto-Axed Deals
+      </span>
     </div>
   );
 }
 
 /**
  * Accepted vs. rejected presented deals, month by month, for whichever teams and
- * associates the page is currently showing.
+ * associates the page is currently showing. Auto-axed rejections get their own
+ * bar and are not also counted in Rejected.
  *
- * The bars sit side by side rather than stacked: the two outcomes don't add up
+ * The bars sit side by side rather than stacked: the outcomes don't add up
  * to the month's presented figure (deals on hold, awaiting a response, or with
  * no recorded move make up the rest), so stacking them would draw a total that
  * doesn't exist. Both wear the fixed status palette -- accepted and rejected are
@@ -74,6 +83,7 @@ export function MonthlyTeamPerformanceChart({
           <Legend content={renderLegend} />
           <Bar dataKey="accepted" name="Accepted" fill="var(--status-good)" radius={[4, 4, 0, 0]} />
           <Bar dataKey="rejected" name="Rejected" fill="var(--status-critical)" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="autoAxed" name="Auto-Axed Deals" fill={AUTO_AXED_COLOR} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>

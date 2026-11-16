@@ -133,8 +133,9 @@ export function collectExportRows({
 
 /**
  * Presented deals bucketed by the calendar month of their Presented Date, split
- * into accepted and rejected -- the monthly view of the same figures the
- * leaderboard totals.
+ * into accepted, rejected and auto-axed -- the monthly view of the same figures
+ * the leaderboard totals. Auto-axed rejections are their own bucket, so
+ * `rejected` here excludes them, exactly as in the leaderboard.
  *
  * The buckets come from monthWindow, so an applied range spans exactly the
  * months it covers and an unfiltered page shows the trailing 12, matching the
@@ -162,7 +163,7 @@ export function buildMonthlyPerformance({
 
   const months = monthWindow({ dateFrom, dateTo });
   const buckets = new Map(
-    months.map((key) => [key, { presented: 0, accepted: 0, rejected: 0 }])
+    months.map((key) => [key, { presented: 0, accepted: 0, rejected: 0, autoAxed: 0 }])
   );
 
   presentedDeals.forEach((deal) => {
@@ -176,6 +177,7 @@ export function buildMonthlyPerformance({
     bucket.presented += 1;
     if (deal.outcome === 'accepted') bucket.accepted += 1;
     else if (deal.outcome === 'rejected') bucket.rejected += 1;
+    else if (deal.outcome === 'autoAxed') bucket.autoAxed += 1;
   });
 
   return months.map((key) => {
@@ -250,6 +252,7 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
           presented: 0,
           accepted: 0,
           rejected: 0,
+          autoAxed: 0,
           onHold: 0,
           awaiting: 0,
         });
@@ -276,6 +279,7 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
       // transition is in none of them (see resolveOutcome).
       if (deal.outcome === 'accepted') row.accepted += 1;
       else if (deal.outcome === 'rejected') row.rejected += 1;
+      else if (deal.outcome === 'autoAxed') row.autoAxed += 1;
       else if (deal.outcome === 'onHold') row.onHold += 1;
       else if (deal.outcome === 'awaiting') row.awaiting += 1;
     });
@@ -302,6 +306,7 @@ export function useSubmissions(rawDateFrom, rawDateTo) {
           presented: sumOf('presented'),
           accepted: sumOf('accepted'),
           rejected: sumOf('rejected'),
+          autoAxed: sumOf('autoAxed'),
           onHold: sumOf('onHold'),
           awaiting: sumOf('awaiting'),
         };

@@ -262,10 +262,11 @@ let teamIndexRevision = -1;
 // filter and read in a label.
 export const NO_TEAM = 'No Team';
 
-// Teams the roster staffs but that never own a presented deal, so picking one
-// only ever shows an empty table. Left out of the filter's options only -- the
-// teams themselves are untouched, so their rows still resolve and roll up.
-const HIDDEN_FILTER_TEAMS = new Set(['El-jay', 'Franz']);
+// Teams the roster staffs but that don't belong on the Presented Deals views:
+// picking one only ever shows an empty table, and the leaderboard doesn't rank
+// them. Left out of the filter's options and the leaderboard only -- the teams
+// themselves are untouched, so their rows still resolve and appear in the table.
+export const HIDDEN_FILTER_TEAMS = new Set(['El-jay', 'Franz']);
 
 function buildTeamIndex() {
   const teamById = new Map();

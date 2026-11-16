@@ -20,6 +20,7 @@ export const PRESENTED_SHEET_NAME = 'Presented Deals';
 const OUTCOME_LABELS = {
   accepted: 'Accepted',
   rejected: 'Rejected',
+  autoAxed: 'Auto-Axed Deals',
   onHold: 'On Hold',
   awaiting: 'Awaiting Response',
 };
