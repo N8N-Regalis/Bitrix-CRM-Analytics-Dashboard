@@ -67,8 +67,13 @@ function buildLeaderboard(rows) {
   // the ones with no team are still eligible here.
   const rankedAssociates = [...rows].sort(byPerformance);
 
-  const share = (metric) =>
-    totals.presented > 0 ? (totals[metric] / totals.presented) * 100 : null;
+  // Both rates are measured against the deals that got an answer, so they add
+  // up to 100% whenever there is at least one. Deals on hold, awaiting
+  // response, auto-axed, or with no recorded move are left out of the
+  // denominator. Null when nobody has answered yet, so it reads as a dash
+  // rather than 0%.
+  const decided = totals.accepted + totals.rejected;
+  const shareOfDecided = (metric) => (decided > 0 ? (totals[metric] / decided) * 100 : null);
 
   return {
     teams,
@@ -78,12 +83,9 @@ function buildLeaderboard(rows) {
     teamCount: rankedTeams.length,
     topTeam: rankedTeams[0] ?? null,
     topAssociate: rankedAssociates[0] ?? null,
-    // Shares of presented, not of each other: the five outcome buckets don't
-    // sum to presented (a deal whose move out of Video Presentation was never
-    // recorded as a transition lands in none of them), so these two rates
-    // deliberately don't add up to 100%.
-    acceptanceRate: share("accepted"),
-    rejectionRate: share("rejected"),
+    decided,
+    acceptanceRate: shareOfDecided("accepted"),
+    rejectionRate: shareOfDecided("rejected"),
   };
 }
 
@@ -97,7 +99,7 @@ function buildLeaderboard(rows) {
 export function TeamLeaderboard({ rows = [], isLoading, className }) {
   const [sort, toggleSort] = useSort("presented");
 
-  const { teams, totals, teamCount, topTeam, topAssociate, acceptanceRate, rejectionRate } =
+  const { teams, totals, decided, teamCount, topTeam, topAssociate, acceptanceRate, rejectionRate } =
     useMemo(() => buildLeaderboard(rows), [rows]);
 
   const sortedTeams = useMemo(() => {
@@ -203,25 +205,25 @@ export function TeamLeaderboard({ rows = [], isLoading, className }) {
           sub={`across ${teamCount} ${teamCount === 1 ? "team" : "teams"}`}
           icon={Presentation}
           color="primary"
-          description="Presented deals in the current view — the figure both rates are measured against. The team count leaves out the No Team bucket, though its deals are still in the total."
+          description="Presented deals in the current view — the total across every outcome. The team count leaves out the No Team bucket, though its deals are still in the total."
           isLoading={isLoading}
         />
         <StatCard
           label="Acceptance Rate"
           value={formatPercent(acceptanceRate, 0)}
-          sub={`${formatNumber(totals.accepted)} accepted`}
+          sub={`${formatNumber(totals.accepted)} accepted of ${formatNumber(decided)} decided`}
           icon={CheckCircle2}
           color="good"
-          description="Accepted as a share of presented deals"
+          description="Accepted ÷ (Accepted + Rejected). Only deals with a decision count — on hold, awaiting response, and auto-axed deals are left out, so this is measured against a smaller base than Total Presented."
           isLoading={isLoading}
         />
         <StatCard
           label="Rejection Rate"
           value={formatPercent(rejectionRate, 0)}
-          sub={`${formatNumber(totals.rejected)} rejected`}
+          sub={`${formatNumber(totals.rejected)} rejected of ${formatNumber(decided)} decided`}
           icon={XCircle}
           color="critical"
-          description="Rejected as a share of presented deals, not counting auto-axed ones (the partner never responded), which have their own column. This and the acceptance rate don't add up to 100% — auto-axed deals, deals on hold, awaiting response, or with no recorded move make up the rest."
+          description="Rejected ÷ (Accepted + Rejected). Auto-axed deals (the partner never responded) have their own column and are left out, along with deals on hold or awaiting response. This and the acceptance rate add up to 100%."
           isLoading={isLoading}
         />
       </div>
