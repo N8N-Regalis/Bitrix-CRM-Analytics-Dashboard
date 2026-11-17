@@ -1,5 +1,8 @@
 -- Deals Bitrix has marked "Reason for Axed" = "Auto-axed - Partner did not
--- respond for 1 week" (field UF_CRM_1755636401, option 881).
+-- respond for 1 week" (field UF_CRM_1755636401, option 881), plus deals with
+-- "Reason for Axed" = "Other - Internal" (option 993) whose "Other Reason (Please
+-- Specify)" (UF_CRM_1756304146842) is the automation's "Automatically Axed by
+-- Automation. Client failed to respond on the Automated follow-up for XX Days."
 --
 -- The `deals` table has no column for that field and the sync that fills it is
 -- not part of this repo, so scripts/refresh-auto-axed-deals.mjs keeps this

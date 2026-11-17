@@ -1,9 +1,12 @@
 // Refreshes the `auto_axed_deals` table in Supabase from Bitrix24.
 //
 // The Presented Deals page splits Rejected into plain rejections and ones the
-// system applied after a partner went quiet for a week. Bitrix records that as
-// the deal's "Reason for Axed" field, which the Supabase `deals` table doesn't
-// carry, so the ids of the deals with that reason are copied here instead.
+// system applied after a partner went quiet. Bitrix records that two ways on the
+// deal: "Reason for Axed" = "Auto-axed - Partner did not respond for 1 week", or
+// "Reason for Axed" = "Other - Internal" with "Other Reason (Please Specify)" =
+// "Automatically Axed by Automation. Client failed to respond on the Automated
+// follow-up for XX Days." The Supabase `deals` table carries neither field, so
+// the ids of deals matching either are copied here instead.
 //
 // A deal can leave the set -- someone corrects the reason -- so this mirrors
 // Bitrix rather than only adding to it: ids no longer returned are deleted.
@@ -20,6 +23,10 @@ import {
   AXED_REASON_FIELD,
   AUTO_AXED_REASON_ID,
   AUTO_AXED_REASON_LABEL,
+  OTHER_INTERNAL_REASON_ID,
+  OTHER_INTERNAL_REASON_LABEL,
+  OTHER_REASON_TEXT_FIELD,
+  AUTOMATION_AXED_TEXT,
 } from '../src/utils/dealFields.js';
 import { createAdminClient, upsertAll } from './supabaseAdmin.mjs';
 
@@ -47,40 +54,74 @@ async function bitrix(method, query) {
 // deletes and recreates the option, 881 could quietly come to mean something
 // else and this table would fill with the wrong deals -- so check the label
 // first and stop rather than guess.
-async function assertReasonOptionUnchanged() {
+async function assertReasonOptionsUnchanged() {
   const { result } = await bitrix('crm.deal.fields', '');
-  const option = result?.[AXED_REASON_FIELD]?.items?.find((item) => String(item.ID) === AUTO_AXED_REASON_ID);
+  const items = result?.[AXED_REASON_FIELD]?.items ?? [];
 
-  if (!option || option.VALUE !== AUTO_AXED_REASON_LABEL) {
-    throw new Error(
-      `Reason for Axed option ${AUTO_AXED_REASON_ID} is ${option ? `"${option.VALUE}"` : 'missing'}, ` +
-        `expected "${AUTO_AXED_REASON_LABEL}". Update src/utils/dealFields.js before refreshing.`
-    );
+  for (const [id, label] of [
+    [AUTO_AXED_REASON_ID, AUTO_AXED_REASON_LABEL],
+    [OTHER_INTERNAL_REASON_ID, OTHER_INTERNAL_REASON_LABEL],
+  ]) {
+    const option = items.find((item) => String(item.ID) === id);
+    if (!option || option.VALUE !== label) {
+      throw new Error(
+        `Reason for Axed option ${id} is ${option ? `"${option.VALUE}"` : 'missing'}, ` +
+          `expected "${label}". Update src/utils/dealFields.js before refreshing.`
+      );
+    }
+  }
+
+  if (!result?.[OTHER_REASON_TEXT_FIELD]) {
+    throw new Error(`Deal field ${OTHER_REASON_TEXT_FIELD} (Other Reason) not found.`);
   }
 }
 
-async function fetchAutoAxedDealIds() {
-  const ids = new Set();
+// Pages through crm.deal.list and hands each deal to onDeal.
+async function forEachDeal(query, onDeal) {
   let start = 0;
   let hasMore = true;
 
   while (hasMore) {
-    const query = `start=${start}&select[]=ID&filter[${AXED_REASON_FIELD}]=${AUTO_AXED_REASON_ID}`;
-    const data = await bitrix('crm.deal.list', query);
+    const data = await bitrix('crm.deal.list', `start=${start}&${query}`);
 
     if (data.result && data.result.length > 0) {
-      data.result.forEach((deal) => ids.add(Number(deal.ID)));
+      data.result.forEach(onDeal);
       hasMore = data.next !== undefined;
       start = data.next ?? start;
     } else {
       hasMore = false;
     }
   }
+}
 
+async function fetchAutoAxedDealIds() {
+  const ids = new Set();
+
+  // 1. The dedicated "Auto-axed - Partner did not respond for 1 week" reason.
+  await forEachDeal(`select[]=ID&filter[${AXED_REASON_FIELD}]=${AUTO_AXED_REASON_ID}`, (deal) =>
+    ids.add(Number(deal.ID))
+  );
+  const fromReason = ids.size;
+
+  // 2. "Other - Internal" deals whose free-text reason is the automation's message.
+  //    Matched in code rather than with a Bitrix LIKE filter, which is unreliable on
+  //    multi-value fields; the Other - Internal set is only a few dozen deals.
+  await forEachDeal(
+    `select[]=ID&select[]=${OTHER_REASON_TEXT_FIELD}&filter[${AXED_REASON_FIELD}]=${OTHER_INTERNAL_REASON_ID}`,
+    (deal) => {
+      const raw = deal[OTHER_REASON_TEXT_FIELD];
+      const texts = Array.isArray(raw) ? raw : [raw];
+      if (texts.some((text) => typeof text === 'string' && AUTOMATION_AXED_TEXT.test(text))) {
+        ids.add(Number(deal.ID));
+      }
+    }
+  );
+
+  console.log(`Auto-axed: ${fromReason} by reason option, ${ids.size - fromReason} by automation text`);
   return ids;
 }
 
-await assertReasonOptionUnchanged();
+await assertReasonOptionsUnchanged();
 const dealIds = await fetchAutoAxedDealIds();
 
 const supabase = createAdminClient();

@@ -219,8 +219,10 @@ async function fetchReworkFallbackOutcomes(dealIds) {
 
 /**
  * Ids of the deals Bitrix marks "Reason for Axed" = "Auto-axed - Partner did not
- * respond for 1 week". The `deals` table doesn't carry that field, so a refresh
- * script copies the ids into `auto_axed_deals` (see sql/auto-axed-deals.sql).
+ * respond for 1 week", or "Other - Internal" with the automation's "Automatically
+ * Axed by Automation..." explanation. The `deals` table doesn't carry those
+ * fields, so a refresh script copies the ids into `auto_axed_deals` (see
+ * sql/auto-axed-deals.sql).
  *
  * A failed read degrades to an empty set rather than failing the page: the
  * presented figures don't depend on it, and the worst outcome is auto-axed deals
