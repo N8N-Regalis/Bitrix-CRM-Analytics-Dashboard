@@ -1,0 +1,52 @@
+# Copies the ids of deals Bitrix has axed automatically ("Reason for Axed" =
+# "Auto-axed - Partner did not respond for 1 week") into Supabase so the
+# Presented Deals page can split them out of Rejected.
+#
+# Split from refresh-names.yml so it can run more often than the roster
+# refresh. Needs sql/auto-axed-deals.sql run once first.
+#
+# Requires the same three repository secrets as refresh-names.yml:
+#   BITRIX_WEBHOOK_BASE, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+
+name: Refresh auto-axed deals
+
+on:
+  schedule:
+    # Weekdays 07:00 and 15:00 Eastern. Cron here is UTC only and has no DST
+    # awareness, so these are pinned to EST: 12:00 UTC = 07:00 EST and
+    # 20:00 UTC = 15:00 EST. From mid-March to early November (EDT) they land
+    # at 08:00 and 16:00 Eastern instead. If that matters, shift both hours
+    # back by one (11:00 and 19:00 UTC) for the summer months.
+    - cron: '0 12 * * 1-5'
+    - cron: '0 20 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A scheduled run and a manual one overlapping would race on the same upserts.
+concurrency:
+  group: refresh-auto-axed
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Refresh auto-axed deals
+        env:
+          BITRIX_WEBHOOK_BASE: ${{ secrets.BITRIX_WEBHOOK_BASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run refresh:auto-axed

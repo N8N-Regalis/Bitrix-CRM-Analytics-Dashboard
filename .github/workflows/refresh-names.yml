@@ -70,13 +70,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npm run refresh:associates
 
-      # Not a name table, but it rides the same schedule and secrets: it copies
-      # the ids of deals axed automatically so the Presented Deals page can split
-      # them out of Rejected. Needs sql/auto-axed-deals.sql run once first.
-      - name: Refresh auto-axed deals
-        if: always()
-        env:
-          BITRIX_WEBHOOK_BASE: ${{ secrets.BITRIX_WEBHOOK_BASE }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npm run refresh:auto-axed
+      # The auto-axed deals refresh has its own workflow (refresh-auto-axed.yml)
+      # because it runs twice a day rather than once.
