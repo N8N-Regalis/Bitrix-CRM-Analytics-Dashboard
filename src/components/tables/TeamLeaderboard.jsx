@@ -210,7 +210,7 @@ export function TeamLeaderboard({ rows = [], isLoading, className }) {
         />
         <StatCard
           label="Acceptance Rate"
-          value={formatPercent(acceptanceRate, 0)}
+          value={formatPercent(acceptanceRate, 2)}
           sub={`${formatNumber(totals.accepted)} accepted of ${formatNumber(decided)} decided`}
           icon={CheckCircle2}
           color="good"
@@ -219,7 +219,7 @@ export function TeamLeaderboard({ rows = [], isLoading, className }) {
         />
         <StatCard
           label="Rejection Rate"
-          value={formatPercent(rejectionRate, 0)}
+          value={formatPercent(rejectionRate, 2)}
           sub={`${formatNumber(totals.rejected)} rejected of ${formatNumber(decided)} decided`}
           icon={XCircle}
           color="critical"
